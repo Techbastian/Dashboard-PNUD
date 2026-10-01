@@ -70,19 +70,18 @@ fases:
   3: Colocación
 ```
 
-## Ruta de la persona (D-24, D-26)
+## Ruta de la persona (P-03)
 
-`valor: pendiente` pinta la etapa como "sin fuente aún" (no como cero).
+Las etapas dependen de cada proyecto (D-37). En PNUD importan cinco. `pendiente` = "Sin fuente aún" (no es cero).
+Las etapas de barreras y seguimiento siguen existiendo en los datos (grupos `mitigadas` y `seguimiento`); se pueden volver a agregar aquí.
 
 ```yaml
 embudo:
-  - { etapa: Registro,                 valor: "formularios[recorrer-pnud].personas" }
-  - { etapa: Línea base y diagnóstico, valor: "formularios[linea-base].personas" }
-  - { etapa: Detección de barreras,    valor: pendiente }
-  - { etapa: Mitigación de barreras,   valor: grupos.mitigadas }
-  - { etapa: Intermediación,           valor: empleabilidad.personas_postuladas_vacantes }
-  - { etapa: Colocación,               valor: empleabilidad.colocados }
-  - { etapa: Seguimiento completo,     valor: grupos.seguimiento }
+  - { etapa: Registro,       valor: "formularios[recorrer-pnud].personas" }
+  - { etapa: Orientación,    valor: pendiente }
+  - { etapa: Aceleración,    valor: formacion.matriculados_con_asistencia }
+  - { etapa: Intermediación, valor: empleabilidad.personas_postuladas_vacantes }
+  - { etapa: Colocación,     valor: empleabilidad.colocados }
 ```
 
 ## Distribuciones

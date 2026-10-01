@@ -9,6 +9,8 @@ import { Menu } from 'lucide-react';
 import Sidebar from './Sidebar';
 import { config } from '../lib/config';
 import { MODULO_INFO, MODULOS } from '../lib/modulos';
+import { useAuth } from '../lib/auth';
+import AccesoEquipo from './AccesoEquipo';
 
 const id = config.identidad;
 
@@ -16,8 +18,8 @@ export default function Shell() {
   const [menu, setMenu] = useState(false);
   const { pathname } = useLocation();
   const modulo = MODULOS.find(m => MODULO_INFO[m].ruta === pathname) ?? 'dashboard';
-  // La sesión llega en la etapa E2 (login magic-link + admin_whitelist). Hasta entonces, nadie la tiene.
-  const conSesion = false;
+  // Sesión del equipo (E2, D-32): abre los módulos privados.
+  const { esAdmin: conSesion } = useAuth();
 
   useEffect(() => {
     document.title = `${MODULO_INFO[modulo].label} · ${id.nombre}`;
@@ -41,7 +43,7 @@ export default function Shell() {
             </button>
             <span className="lg:hidden text-sm font-black text-slate-700 truncate">{id.nombre}</span>
           </div>
-          <div className="flex items-center gap-6" />
+          <div className="flex items-center gap-6"><AccesoEquipo /></div>
         </header>
 
         <main className="p-4 sm:p-8">
@@ -61,7 +63,7 @@ export default function Shell() {
                 exit={{ opacity: 0, y: -20 }}
                 transition={{ duration: 0.2 }}
               >
-                <Outlet context={{ conSesion }} />
+                <Outlet />
               </motion.div>
             </AnimatePresence>
           </div>

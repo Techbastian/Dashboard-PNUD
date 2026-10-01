@@ -7,7 +7,7 @@ import { Fragment, useEffect, useMemo, useState, type ReactElement, type ReactNo
 import { Loader2, RefreshCw, AlertCircle, FlaskConical } from 'lucide-react';
 import { config } from '../lib/config';
 import { lista, resolver, type Valor } from '../lib/ruta';
-import { num } from '../lib/formato';
+import { num, humano } from '../lib/formato';
 import { usePublicStats, type PublicStats } from '../lib/usePublicStats';
 import {
   AreaChart, DistCard, DonutChart, KPICard, ListaBarras, Tarjeta, rellenarDias, toChart, type SeriePunto,
@@ -235,7 +235,7 @@ export default function DashboardView() {
   const emp = (data.empresas ?? {}) as { aliadas?: number };
   const vac = (data.vacantes ?? {}) as { total?: number; cargos?: number; empresas_con_vacantes?: number };
   const serie = (data.registros_por_dia as SeriePunto[] | undefined) ?? [];
-  const estados = lista(data, 'postulaciones.por_estado')?.map(d => ({ ...d, categoria: capital(d.categoria) })) ?? null;
+  const estados = lista(data, 'postulaciones.por_estado')?.map(d => ({ ...d, categoria: humano(d.categoria) })) ?? null;
   const formularios = lista(data, 'formularios')?.map(d => ({ ...d, categoria: capital(d.categoria.replace(/-/g, ' ')) })) ?? null;
 
   const secciones: Record<string, () => ReactElement | null> = {
@@ -246,7 +246,7 @@ export default function DashboardView() {
             <div key={f} className="space-y-4">
               {fases.length > 1 && (
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                  Fase {f}{config.fases[f] ? ` · ${config.fases[f]}` : ''}
+                  {config.fases[f] ?? `Fase ${f}`}
                 </p>
               )}
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">

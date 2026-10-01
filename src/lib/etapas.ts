@@ -8,7 +8,7 @@
  *   matriculado                    tiene matrícula en la cohorte
  *   asistencia[:<tipo>]            asistió a un evento (de ese tipo)
  *   asistencia_matriculado[:<tipo>] matriculada y asistió a un evento (de ese tipo)
- *   documentos:<grupo>             tiene TODOS los documentos del grupo (config.grupos)
+ *   documentos:<grupo>             tiene los documentos del grupo (config.grupos): todos, o al menos uno si es { alguno: [...] }
  *   postulado                      se postuló a alguna vacante (plataforma o externa)
  *   colocado                       tiene una colocación activa
  *   pendiente                      sin fuente aún (no es "no")
@@ -28,7 +28,7 @@ export function reglaDe(e: Etapa): string {
   if ((m = v.match(/^formacion\.asistencia_por_tipo\[([^\]]+)\]/))) return `asistencia:${m[1]}`;
   if (v === 'formacion.matriculados_con_asistencia') return 'asistencia_matriculado';
   if (v === 'formacion.personas_con_asistencia') return 'asistencia';
-  if ((m = v.match(/^grupos\.(.+)$/))) return `documentos:${m[1]}`;
+  if ((m = v.match(/^grupos(?:_mujeres)?\.(.+)$/))) return `documentos:${m[1]}`;
   if (v === 'empleabilidad.personas_postuladas_vacantes') return 'postulado';
   if (v === 'empleabilidad.colocados') return 'colocado';
   if (v === 'matriculados') return 'matriculado';
@@ -74,9 +74,13 @@ export function evaluar(regla: string, p: Persona, d: DatosCohorte, ix: Indice):
     case 'asistencia': return ix.asistio.get(p.id)?.has(arg || '*') ?? false;
     case 'asistencia_matriculado': return p.matricula != null && (ix.asistio.get(p.id)?.has(arg || '*') ?? false);
     case 'documentos': {
-      const claves = config.grupos[arg] ?? [];
+      const g = config.grupos[arg];
+      if (!g) return null;
+      const alguno = !Array.isArray(g);
+      const claves = Array.isArray(g) ? g : g.alguno ?? [];
       if (!claves.length) return null;
-      return claves.every(k => Object.values(p.respuestas).some(bl => bl && typeof bl === 'object' && tieneValor((bl as Record<string, unknown>)[k])));
+      const tiene = (k: string) => Object.values(p.respuestas).some(bl => bl && typeof bl === 'object' && tieneValor((bl as Record<string, unknown>)[k]));
+      return alguno ? claves.some(tiene) : claves.every(tiene);
     }
     case 'postulado': return ix.postulado.has(p.id);
     case 'colocado': return ix.colocado.has(p.id);

@@ -43,6 +43,11 @@ export interface Empresa {
   id: string; nombre: string; razonSocial: string; nit: string; tamano: string | null; sector: string | null; municipios: string[];
   direccion: string | null; contacto: { nombre: string | null; telefono: string | null; correo: string | null }; registradaEl: string | null; vacantes: Vacante[];
 }
+/** Asistencia de una EMPRESA a un evento (A-10, D-40): P1 empresa sensibilizada = asistió a un evento de sensibilización. */
+export interface AsistenciaEmpresa { id: string; eventoId: string; empresaId: string; estado: 'agendado' | 'asistio' | 'no_asistio' | 'cancelado'; asistentes: number | null; marcadoEn: string | null; marcadoPor: string | null }
+export type TipoEvidencia = 'agenda' | 'asistencia' | 'fotografia' | 'otro';
+/** Evidencia de un evento (A-10): archivo en el bucket privado `evidencias-eventos` o enlace. */
+export interface Evidencia { id: string; eventoId: string; tipo: TipoEvidencia; nombre: string | null; ruta: string | null; url: string | null; subidoPor: string | null; fecha: string }
 export interface Pregunta { clave: string; etiqueta: string; tipo: string }
 export interface Formulario { bloque: string; slug: string; nombre: string; preguntas: Pregunta[] }
 
@@ -50,6 +55,8 @@ export interface DatosCohorte {
   personas: Persona[];
   eventos: Evento[];
   asistencias: Asistencia[];
+  asistenciaEmpresas: AsistenciaEmpresa[];
+  evidencias: Evidencia[];
   postulaciones: Postulacion[];
   colocaciones: Colocacion[];
   empresas: Empresa[];
@@ -68,6 +75,12 @@ interface Valor {
   borrarEvento: (id: string) => Promise<string | null>;
   marcarAsistencia: (eventoId: string, personaId: string, estado: EstadoAsistencia) => Promise<string | null>;
   quitarDeEvento: (eventoId: string, personaId: string) => Promise<string | null>;
+  marcarEmpresa: (eventoId: string, empresaId: string, estado: AsistenciaEmpresa['estado'], asistentes?: number | null) => Promise<string | null>;
+  quitarEmpresa: (eventoId: string, empresaId: string) => Promise<string | null>;
+  subirEvidencia: (eventoId: string, tipo: TipoEvidencia, fuente: { archivo: File } | { url: string; nombre?: string }) => Promise<string | null>;
+  borrarEvidencia: (e: Evidencia) => Promise<string | null>;
+  /** URL para abrir una evidencia (firmada por 10 minutos si es archivo). */
+  abrirEvidencia: (e: Evidencia) => Promise<string | null>;
 }
 
 const Ctx = createContext<Valor | null>(null);
@@ -129,7 +142,12 @@ async function cargarTodo(): Promise<DatosCohorte> {
     todas('company_cohorts', 'company_id', q => q.eq('cohort_id', COHORTE)),
     todas('jobs', 'id, company_id, title, total_positions, salary_range, modality, employment_type, required_education_level, required_experience_months, status, is_published, visibility, cities', q => q.eq('cohort_id', COHORTE)),
   ]);
-  const asistRaw = await porIds('session_attendance', 'id, event_id, candidate_id, estado, marcado_en, marcado_por, observaciones', 'event_id', eventos.map(e => String(e.id)));
+  const idsEventos = eventos.map(e => String(e.id));
+  const [asistRaw, asistEmpRaw, evidRaw] = await Promise.all([
+    porIds('session_attendance', 'id, event_id, candidate_id, estado, marcado_en, marcado_por, observaciones', 'event_id', idsEventos),
+    porIds('event_company_attendance', 'id, event_id, company_id, estado, asistentes, marcado_en, marcado_por', 'event_id', idsEventos),
+    porIds('event_evidences', 'id, event_id, tipo, nombre, storage_path, url, subido_por, created_at', 'event_id', idsEventos),
+  ]);
 
   // Vacantes y empresas que hacen falta para nombrar postulaciones y colocaciones de la plataforma.
   const jobsExtra = await porIds('jobs', 'id, company_id, title', 'id', [...postPlat.map(p => String(p.job_id ?? '')), ...colocRaw.map(c => String(c.job_id ?? ''))]);
@@ -178,6 +196,14 @@ async function cargarTodo(): Promise<DatosCohorte> {
       inicio: String(e.fecha_hora_inicio), fin: s(e.fecha_hora_fin), descripcion: s(e.descripcion), tomaAsistencia: e.toma_asistencia !== false,
       origen: s(e.external_source), enlace: s(e.meeting_link),
     })),
+    asistenciaEmpresas: asistEmpRaw.map(a => ({
+      id: String(a.id), eventoId: String(a.event_id), empresaId: String(a.company_id), estado: String(a.estado) as AsistenciaEmpresa['estado'],
+      asistentes: a.asistentes == null ? null : Number(a.asistentes), marcadoEn: s(a.marcado_en), marcadoPor: s(a.marcado_por),
+    })),
+    evidencias: evidRaw.map(e => ({
+      id: String(e.id), eventoId: String(e.event_id), tipo: String(e.tipo) as TipoEvidencia, nombre: s(e.nombre), ruta: s(e.storage_path),
+      url: s(e.url), subidoPor: s(e.subido_por), fecha: String(e.created_at),
+    })).sort((a, b) => a.fecha.localeCompare(b.fecha)),
     asistencias: asistRaw.map(a => ({
       id: String(a.id), eventoId: String(a.event_id), personaId: String(a.candidate_id), estado: String(a.estado ?? 'pendiente') as EstadoAsistencia,
       marcadoEn: s(a.marcado_en), marcadoPor: s(a.marcado_por), observaciones: s(a.observaciones),
@@ -268,8 +294,58 @@ export function CohorteProvider({ children }: { children: ReactNode }) {
     return mensaje(error);
   }, [recargar]);
 
-  const valor = useMemo(() => ({ datos, cargando, error, cargar, recargar, guardarEvento, borrarEvento, marcarAsistencia, quitarDeEvento }),
-    [datos, cargando, error, cargar, recargar, guardarEvento, borrarEvento, marcarAsistencia, quitarDeEvento]);
+  const marcarEmpresa: Valor['marcarEmpresa'] = useCallback(async (eventoId, empresaId, estado, asistentes) => {
+    const { error } = await supabase!.from('event_company_attendance').upsert({
+      event_id: eventoId, company_id: empresaId, cohort_id: COHORTE, estado, asistentes: asistentes ?? null,
+      marcado_por: correo, marcado_en: new Date().toISOString(),
+    }, { onConflict: 'event_id,company_id' });
+    if (!error) await recargar();
+    return mensaje(error);
+  }, [correo, recargar]);
+
+  const quitarEmpresa: Valor['quitarEmpresa'] = useCallback(async (eventoId, empresaId) => {
+    const { error } = await supabase!.from('event_company_attendance').delete().eq('event_id', eventoId).eq('company_id', empresaId);
+    if (!error) await recargar();
+    return mensaje(error);
+  }, [recargar]);
+
+  const subirEvidencia: Valor['subirEvidencia'] = useCallback(async (eventoId, tipo, fuente) => {
+    let ruta: string | null = null, url: string | null = null, nombre: string | null = null;
+    if ('archivo' in fuente) {
+      const f = fuente.archivo;
+      if (f.size > 20 * 1024 * 1024) return 'El archivo pesa más de 20 MB.';
+      const limpio = f.name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9._-]+/g, '_');
+      ruta = `${COHORTE}/${eventoId}/${Date.now()}-${limpio}`;
+      nombre = f.name;
+      const up = await supabase!.storage.from('evidencias-eventos').upload(ruta, f, { contentType: f.type || undefined, upsert: false });
+      if (up.error) return mensaje(up.error);
+    } else {
+      url = fuente.url.trim(); nombre = fuente.nombre?.trim() || null;
+      if (!/^https?:\/\//.test(url)) return 'El enlace debe empezar por http:// o https://';
+    }
+    const { error } = await supabase!.from('event_evidences').insert({ event_id: eventoId, tipo, nombre, storage_path: ruta, url, subido_por: correo });
+    if (error && ruta) await supabase!.storage.from('evidencias-eventos').remove([ruta]);
+    if (!error) await recargar();
+    return mensaje(error);
+  }, [correo, recargar]);
+
+  const borrarEvidencia: Valor['borrarEvidencia'] = useCallback(async (e) => {
+    const { error } = await supabase!.from('event_evidences').delete().eq('id', e.id);
+    if (!error && e.ruta) await supabase!.storage.from('evidencias-eventos').remove([e.ruta]);
+    if (!error) await recargar();
+    return mensaje(error);
+  }, [recargar]);
+
+  const abrirEvidencia: Valor['abrirEvidencia'] = useCallback(async (e) => {
+    if (e.url) return e.url;
+    if (!e.ruta) return null;
+    const { data } = await supabase!.storage.from('evidencias-eventos').createSignedUrl(e.ruta, 600);
+    return data?.signedUrl ?? null;
+  }, []);
+
+  const valor = useMemo(() => ({ datos, cargando, error, cargar, recargar, guardarEvento, borrarEvento, marcarAsistencia, quitarDeEvento,
+    marcarEmpresa, quitarEmpresa, subirEvidencia, borrarEvidencia, abrirEvidencia }),
+    [datos, cargando, error, cargar, recargar, guardarEvento, borrarEvento, marcarAsistencia, quitarDeEvento, marcarEmpresa, quitarEmpresa, subirEvidencia, borrarEvidencia, abrirEvidencia]);
   return <Ctx.Provider value={valor}>{children}</Ctx.Provider>;
 }
 

@@ -12,7 +12,11 @@ export interface Meta { fase?: number; meta: string; actual: string; ayuda?: str
  *  en las vistas privadas (si falta, se deduce de `valor`; ver src/lib/etapas.ts). */
 export interface Etapa { etapa: string; valor: string; regla?: string }
 /** Tipo de evento que se puede crear en el Calendario (D-33). `etapa` = a qué etapa de la ruta suma asistir. */
-export interface TipoEvento { tipo: string; label: string; descripcion?: string; modalidad?: 'Presencial' | 'Virtual' | 'Híbrida'; color?: string }
+export interface TipoEvento {
+  tipo: string; label: string; descripcion?: string; modalidad?: 'Presencial' | 'Virtual' | 'Híbrida'; color?: string;
+  /** El evento registra EMPRESAS asistentes (p. ej. sensibilización, D-40) además de personas. */
+  empresas?: boolean;
+}
 export interface Distribucion { titulo: string; datos: string; nota?: string; grafico?: 'barras' | 'dona' }
 
 export interface DashboardConfig {
@@ -26,7 +30,8 @@ export interface DashboardConfig {
     refrescoSegundos?: number;
     datosDePrueba?: boolean;
   };
-  grupos: Record<string, string[]>;
+  /** Documentos: [claves] = debe tener TODAS; { alguno: [claves] } = AL MENOS UNA (A-11). */
+  grupos: Record<string, string[] | { alguno: string[] }>;
   cifras: Cifra[];
   metas: Meta[];
   fases: Record<string, string>;
@@ -79,6 +84,6 @@ function validarCatalogo(c: unknown): TipoEvento[] {
     const t = x as Partial<TipoEvento>;
     if (!t?.tipo || !t?.label) throw new Error(`dashboard.config.md: catalogo[${i}] necesita tipo y label`);
     if (!/^[a-z0-9_-]+$/.test(t.tipo)) throw new Error(`dashboard.config.md: catalogo[${i}].tipo «${t.tipo}» solo admite minúsculas, números, - y _`);
-    return { tipo: t.tipo, label: t.label, descripcion: t.descripcion, modalidad: t.modalidad, color: t.color };
+    return { tipo: t.tipo, label: t.label, descripcion: t.descripcion, modalidad: t.modalidad, color: t.color, empresas: Boolean(t.empresas) };
   });
 }

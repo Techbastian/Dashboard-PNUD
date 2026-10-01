@@ -5,9 +5,9 @@
  * Lo que cuenta para las etapas es `asistio` (ver lib/etapas.ts y la función pública v4).
  */
 import { Fragment, useMemo, useState, type FormEvent } from 'react';
-import { ChevronLeft, ChevronRight, Plus, MapPin, Video, Users, Trash2, Loader2, Check, X as XIcon, CalendarDays, List } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, MapPin, Video, Users, Trash2, Loader2, Check, X as XIcon, CalendarDays, List, Building2, Paperclip, Upload, Link2, ExternalLink, FileText, Image as ImageIcon } from 'lucide-react';
 import { config } from '../lib/config';
-import { useCohorte, type Evento, type EstadoAsistencia, type Persona } from '../lib/datos';
+import { useCohorte, type Evento, type EstadoAsistencia, type Persona, type TipoEvidencia, type Evidencia } from '../lib/datos';
 import { diaBogota, diaLargo, hora, hhmmBogota, isoBogota, norm, humano } from '../lib/formato';
 import { BarraDatos, Cargando, ErrorDatos, PanelLateral, BloqueFicha, Etiqueta, Pestanas, Vacio, Aviso } from '../ui/Privado';
 
@@ -148,6 +148,9 @@ export default function CalendarioView() {
 }
 
 function Agenda({ eventos, conteo, hoy, onAbrir }: { eventos: Evento[]; conteo: Map<string, { asistio: number; total: number }>; hoy: string; onAbrir: (id: string) => void }) {
+  const { datos } = useCohorte();
+  const nEvid = (id: string) => datos?.evidencias.filter(x => x.eventoId === id).length ?? 0;
+  const nEmp = (id: string) => datos?.asistenciaEmpresas.filter(x => x.eventoId === id && x.estado === 'asistio').length ?? 0;
   const [verPasados, setVerPasados] = useState(false);
   const lista = eventos.filter(e => verPasados || diaBogota(e.inicio) >= hoy);
   const grupos = new Map<string, Evento[]>();
@@ -174,7 +177,11 @@ function Agenda({ eventos, conteo, hoy, onAbrir }: { eventos: Evento[]; conteo: 
                         <span className="block text-sm font-bold text-slate-800 truncate">{e.nombre}</span>
                         <span className="block text-[11px] font-bold text-slate-400">{labelTipo(e.tipo)}{e.modalidad ? ` · ${e.modalidad}` : ''}{e.ubicacion ? ` · ${e.ubicacion}` : ''}</span>
                       </span>
-                      <span className="text-[11px] font-black text-slate-500 tnum whitespace-nowrap"><Users size={12} className="inline -mt-0.5" /> {c?.asistio ?? 0}/{c?.total ?? 0}</span>
+                      <span className="flex items-center gap-3 text-[11px] font-black text-slate-500 tnum whitespace-nowrap">
+                        {nEmp(e.id) > 0 && <span title="Empresas que asistieron"><Building2 size={12} className="inline -mt-0.5" /> {nEmp(e.id)}</span>}
+                        <span title="Personas: asistieron / en el evento"><Users size={12} className="inline -mt-0.5" /> {c?.asistio ?? 0}/{c?.total ?? 0}</span>
+                        <span title="Evidencias" className={nEvid(e.id) ? 'text-emerald-600' : 'text-slate-300'}><Paperclip size={12} className="inline -mt-0.5" /> {nEvid(e.id)}</span>
+                      </span>
                     </button>
                   </li>
                 );
@@ -239,6 +246,9 @@ function PanelEvento({ evento, onCerrar, onEditar }: { evento: Evento; onCerrar:
       </div>
 
       {error && <Aviso tono="red">{error}</Aviso>}
+
+      {config.catalogo.find(c => c.tipo === evento.tipo)?.empresas && <EmpresasDelEvento evento={evento} />}
+      <EvidenciasDelEvento evento={evento} />
 
       <BloqueFicha titulo="Agregar persona de la cohorte">
         <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Nombre, documento o correo…"
@@ -389,5 +399,141 @@ function FormEvento({ inicial, onCerrar, onGuardado }: { inicial: NonNullable<Ed
         </div>
       </form>
     </PanelLateral>
+  );
+}
+
+/** Empresas que asistieron a un evento (A-10, D-40). P1: una empresa queda sensibilizada al asistir a una sensibilización. */
+function EmpresasDelEvento({ evento }: { evento: Evento }) {
+  const { datos, marcarEmpresa, quitarEmpresa } = useCohorte();
+  const [busca, setBusca] = useState('');
+  const [ocupado, setOcupado] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  if (!datos) return null;
+  const filas = datos.asistenciaEmpresas.filter(a => a.eventoId === evento.id);
+  const nombre = new Map(datos.empresas.map(e => [e.id, e]));
+  const ya = new Set(filas.map(f => f.empresaId));
+  const candidatas = busca.trim().length < 2 ? [] : datos.empresas
+    .filter(e => !ya.has(e.id) && [e.nombre, e.razonSocial, e.nit, ...e.municipios].some(v => norm(v).includes(norm(busca)))).slice(0, 8);
+  async function hacer(k: string, f: () => Promise<string | null>) { setOcupado(k); setError(null); const e = await f(); setOcupado(null); if (e) setError(e); }
+
+  return (
+    <BloqueFicha titulo={`Empresas que asistieron (${filas.filter(f => f.estado === 'asistio').length})`}>
+      <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar empresa del proyecto por nombre, NIT o municipio…"
+        className="w-full bg-slate-50 rounded-xl px-4 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-brand/20" />
+      {candidatas.length > 0 && (
+        <ul className="mt-2 border border-slate-100 rounded-xl divide-y divide-slate-50">
+          {candidatas.map(e => (
+            <li key={e.id} className="px-3 py-2 flex items-center justify-between gap-3">
+              <span className="min-w-0"><span className="block text-sm font-bold text-slate-700 truncate">{e.nombre}</span><span className="block text-[11px] text-slate-400">NIT {e.nit} · {e.municipios.join(', ') || '—'}</span></span>
+              <button type="button" disabled={!!ocupado} onClick={() => hacer(e.id, () => marcarEmpresa(evento.id, e.id, 'asistio')).then(() => setBusca(''))}
+                className="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-700 hover:bg-emerald-100 disabled:opacity-50 shrink-0">Asistió</button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {busca.trim().length >= 2 && candidatas.length === 0 && <p className="text-[11px] font-bold text-slate-400 mt-2">Ninguna otra empresa del proyecto coincide.</p>}
+      {error && <div className="mt-2"><Aviso tono="red">{error}</Aviso></div>}
+      {filas.length > 0 && (
+        <ul className="mt-3 divide-y divide-slate-50 border border-slate-100 rounded-xl">
+          {filas.map(f => {
+            const e = nombre.get(f.empresaId);
+            return (
+              <li key={f.id} className="px-3 py-2.5 flex items-center justify-between gap-3">
+                <span className="min-w-0"><span className="block text-sm font-bold text-slate-700 truncate">{e?.nombre ?? 'Empresa fuera del proyecto'}</span><span className="block text-[11px] text-slate-400">{e ? `NIT ${e.nit}` : ''}</span></span>
+                <span className="flex items-center gap-1.5 shrink-0">
+                  <Etiqueta tono={f.estado === 'asistio' ? 'emerald' : f.estado === 'no_asistio' ? 'red' : 'amber'}>{humano(f.estado)}</Etiqueta>
+                  <button type="button" disabled={!!ocupado} onClick={() => hacer(f.empresaId + 'q', () => quitarEmpresa(evento.id, f.empresaId))}
+                    className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 disabled:opacity-40" title="Quitar" aria-label="Quitar empresa"><Trash2 size={13} /></button>
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </BloqueFicha>
+  );
+}
+
+const TIPOS_EVIDENCIA: { tipo: TipoEvidencia; label: string }[] = [
+  { tipo: 'agenda', label: 'Agenda metodológica' }, { tipo: 'asistencia', label: 'Lista de asistencia firmada' },
+  { tipo: 'fotografia', label: 'Registro fotográfico' }, { tipo: 'otro', label: 'Otro soporte' },
+];
+
+/** Evidencias del evento (A-10): agenda, lista de asistencia firmada, fotos u otro; archivo (bucket privado) o enlace. */
+function EvidenciasDelEvento({ evento }: { evento: Evento }) {
+  const { datos, subirEvidencia, borrarEvidencia, abrirEvidencia } = useCohorte();
+  const [tipo, setTipo] = useState<TipoEvidencia>('agenda');
+  const [modo, setModo] = useState<'archivo' | 'enlace'>('archivo');
+  const [archivos, setArchivos] = useState<File[]>([]);
+  const [url, setUrl] = useState('');
+  const [ocupado, setOcupado] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [borrar, setBorrar] = useState<string | null>(null);
+  if (!datos) return null;
+  const lista = datos.evidencias.filter(e => e.eventoId === evento.id);
+  const faltan = TIPOS_EVIDENCIA.slice(0, 3).filter(t => !lista.some(e => e.tipo === t.tipo));
+
+  async function subir() {
+    setOcupado(true); setError(null);
+    let err: string | null = null;
+    if (modo === 'archivo') { for (const f of archivos) { err = await subirEvidencia(evento.id, tipo, { archivo: f }); if (err) break; } }
+    else err = await subirEvidencia(evento.id, tipo, { url });
+    setOcupado(false);
+    if (err) setError(err); else { setArchivos([]); setUrl(''); }
+  }
+  async function abrir(e: Evidencia) {
+    const u = await abrirEvidencia(e);
+    if (u) window.open(u, '_blank', 'noopener'); else setError('No se pudo abrir la evidencia.');
+  }
+  const label = (t: TipoEvidencia) => TIPOS_EVIDENCIA.find(x => x.tipo === t)?.label ?? t;
+
+  return (
+    <BloqueFicha titulo={`Evidencias (${lista.length})`}>
+      {faltan.length > 0 && <p className="text-[11px] font-bold text-amber-600 mb-2">Falta: {faltan.map(f => f.label.toLowerCase()).join(', ')}.</p>}
+      {lista.length > 0 && (
+        <ul className="mb-3 divide-y divide-slate-50 border border-slate-100 rounded-xl">
+          {lista.map(e => (
+            <li key={e.id} className="px-3 py-2.5 flex items-center justify-between gap-3">
+              <button type="button" onClick={() => abrir(e)} className="min-w-0 flex items-center gap-2 text-left">
+                {e.tipo === 'fotografia' ? <ImageIcon size={15} className="text-slate-400 shrink-0" /> : e.url ? <Link2 size={15} className="text-slate-400 shrink-0" /> : <FileText size={15} className="text-slate-400 shrink-0" />}
+                <span className="min-w-0"><span className="block text-sm font-bold text-slate-700 truncate">{e.nombre ?? e.url ?? 'Archivo'}</span><span className="block text-[11px] text-slate-400">{label(e.tipo)} · {e.subidoPor ?? ''}</span></span>
+                <ExternalLink size={13} className="text-brand shrink-0" />
+              </button>
+              {borrar === e.id ? (
+                <span className="flex items-center gap-1.5 shrink-0">
+                  <button type="button" onClick={async () => { const err = await borrarEvidencia(e); setBorrar(null); if (err) setError(err); }} className="px-2 py-1 rounded-lg bg-red-600 text-white text-[10px] font-black uppercase">Borrar</button>
+                  <button type="button" onClick={() => setBorrar(null)} className="text-[10px] font-black uppercase text-slate-400">No</button>
+                </span>
+              ) : (
+                <button type="button" onClick={() => setBorrar(e.id)} className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 shrink-0" aria-label="Borrar evidencia"><Trash2 size={13} /></button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="bg-slate-50 rounded-xl p-3 space-y-2">
+        <div className="flex flex-wrap gap-2">
+          <select value={tipo} onChange={e => setTipo(e.target.value as TipoEvidencia)} aria-label="Tipo de evidencia" className="bg-white rounded-lg px-3 py-2 text-xs font-bold text-slate-600 flex-1 min-w-[12rem]">
+            {TIPOS_EVIDENCIA.map(t => <option key={t.tipo} value={t.tipo}>{t.label}</option>)}
+          </select>
+          <div className="flex bg-white rounded-lg p-0.5">
+            {(['archivo', 'enlace'] as const).map(m => (
+              <button key={m} type="button" onClick={() => setModo(m)} aria-pressed={modo === m}
+                className={`px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest ${modo === m ? 'bg-brand/10 text-brand' : 'text-slate-400'}`}>{m === 'archivo' ? 'Archivo' : 'Enlace'}</button>
+            ))}
+          </div>
+        </div>
+        {modo === 'archivo'
+          ? <input type="file" multiple accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx" onChange={e => setArchivos([...(e.target.files ?? [])])}
+              className="block w-full text-xs text-slate-500 file:mr-3 file:rounded-lg file:border-0 file:bg-white file:px-3 file:py-2 file:text-[10px] file:font-black file:uppercase file:text-brand" />
+          : <input type="url" value={url} onChange={e => setUrl(e.target.value)} placeholder="https://drive.google.com/…" className="w-full bg-white rounded-lg px-3 py-2 text-sm outline-none" />}
+        <button type="button" onClick={subir} disabled={ocupado || (modo === 'archivo' ? archivos.length === 0 : !url.trim())}
+          className="flex items-center gap-2 bg-brand text-white rounded-lg px-4 py-2 text-[10px] font-black uppercase tracking-widest disabled:opacity-50">
+          {ocupado ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />} {modo === 'archivo' && archivos.length > 1 ? `Subir ${archivos.length} archivos` : 'Agregar evidencia'}
+        </button>
+        <p className="text-[10px] font-bold text-slate-400">Los archivos quedan en un almacenamiento privado; solo el equipo los puede abrir. Máximo 20 MB por archivo.</p>
+      </div>
+      {error && <div className="mt-2"><Aviso tono="red">{error}</Aviso></div>}
+    </BloqueFicha>
   );
 }

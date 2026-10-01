@@ -47,7 +47,7 @@ grupos:
 cifras:
   - { label: Empresas conectadas,  valor: empresas.aliadas }
   - { label: Personas registradas, valor: "formularios[recorrer-pnud].personas" }
-  - { label: Personas aceleradas,  valor: formacion.matriculados_con_asistencia, ayuda: Matriculadas y con asistencia a al menos un evento de formación }
+  - { label: Personas aceleradas,  valor: "formacion.asistencia_por_tipo[formacion].matriculados", ayuda: Matriculadas y con asistencia a al menos una sesión formativa }
   - { label: Personas mitigadas,   valor: grupos.mitigadas, ayuda: Con soporte de entrega del servicio de mitigación de barreras }
   - { label: Personas colocadas,   valor: empleabilidad.colocados }
 ```
@@ -61,7 +61,7 @@ El **valor actual** se calcula en vivo con `actual`.
 metas:
   - { fase: 1, meta: Empresas conectadas al programa,       actual: empresas.aliadas }
   - { fase: 1, meta: Eventos de sensibilización realizados, actual: "formacion.eventos_por_tipo[sensibilizacion].realizados", ayuda: Eventos con tipo 'sensibilizacion' ya realizados }
-  - { fase: 2, meta: Personas atendidas (aceleradas),       actual: formacion.matriculados_con_asistencia }
+  - { fase: 2, meta: Personas atendidas (aceleradas),       actual: "formacion.asistencia_por_tipo[formacion].matriculados" }
   - { fase: 3, meta: Personas colocadas,                    actual: empleabilidad.colocados }
   - { fase: 3, meta: Mujeres colocadas,                     actual: "empleabilidad.colocados_por_genero[Mujer]" }
 fases:
@@ -72,16 +72,31 @@ fases:
 
 ## Ruta de la persona (P-03)
 
-Las etapas dependen de cada proyecto (D-37). En PNUD importan cinco. `pendiente` = "Sin fuente aún" (no es cero).
+Las etapas dependen de cada proyecto (D-37). En PNUD importan cinco. Orientación = asistió a una sesión de orientación;
+Aceleración = matriculada y asistió a una sesión formativa (D-33). Se marcan en el Calendario.
 Las etapas de barreras y seguimiento siguen existiendo en los datos (grupos `mitigadas` y `seguimiento`); se pueden volver a agregar aquí.
 
 ```yaml
 embudo:
   - { etapa: Registro,       valor: "formularios[recorrer-pnud].personas" }
-  - { etapa: Orientación,    valor: pendiente }
-  - { etapa: Aceleración,    valor: formacion.matriculados_con_asistencia }
+  - { etapa: Orientación,    valor: "formacion.asistencia_por_tipo[orientacion].personas" }
+  - { etapa: Aceleración,    valor: "formacion.asistencia_por_tipo[formacion].matriculados" }
   - { etapa: Intermediación, valor: empleabilidad.personas_postuladas_vacantes }
   - { etapa: Colocación,     valor: empleabilidad.colocados }
+```
+
+## Tipos de evento del Calendario (D-33)
+
+Lo que se puede crear en el Calendario. Asistir a `orientacion` marca Orientación; asistir a `formacion` (estando
+matriculada) marca Aceleración; los `sensibilizacion` realizados suman a la meta de la fase 1. El nombre de cada
+sesión se escribe al crearla.
+
+```yaml
+catalogo:
+  - { tipo: orientacion,     label: Sesión de orientación,  modalidad: Presencial, descripcion: "Quien asiste pasa la etapa Orientación." }
+  - { tipo: formacion,       label: Sesión formativa,       modalidad: Presencial, descripcion: "Ponle el nombre de la sesión. Quien asiste y está matriculada cuenta como acelerada." }
+  - { tipo: sensibilizacion, label: Evento de sensibilización (empresas), modalidad: Presencial, descripcion: "Suma a la meta de 3 eventos de la fase 1 cuando ya se realizó." }
+  - { tipo: mitigacion,      label: Mitigación de barreras, modalidad: Presencial }
 ```
 
 ## Distribuciones

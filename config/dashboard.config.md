@@ -42,7 +42,7 @@ grupos:
 ## Metas del contrato (P-05, A-09)
 
 Una fase por producto del contrato. El **objetivo** sale de `cohort_goals` (por nombre); el **actual** se calcula en vivo.
-"Mujer" = sexo asignado al nacer (D-39). `pendiente` = el dato aún no existe en la base ("Sin fuente aún").
+"Mujer" = Género Femenino, campo «Género» del registro (D-42, P-07). `pendiente` = el dato aún no existe en la base ("Sin fuente aún").
 
 ```yaml
 metas:
@@ -117,7 +117,7 @@ Cada una apunta a una lista `[{categoria, n}]`. Edad y municipio agrupan categor
 ```yaml
 distribuciones:
   personas:
-    - { titulo: Sexo,                   datos: postulaciones.por_sexo, nota: Sexo asignado al nacer, grafico: dona }
+    - { titulo: Género,                 datos: postulaciones.por_sexo, nota: Campo «Género» del registro, grafico: dona }
     - { titulo: Edad,                   datos: postulaciones.por_edad }
     - { titulo: Municipio,              datos: postulaciones.por_municipio }
   empresas:

@@ -20,7 +20,7 @@ identidad:
   colorPrimario: "#0b3b6b"
   colorAcento: "#025ea7"
   refrescoSegundos: 60
-  datosDePrueba: true        # D-25: todas las personas actuales son de prueba → se muestra un aviso
+  datosDePrueba: false       # P-06: pruebas borradas el 14-oct (A-12); solo quedan registros reales
 ```
 
 ## Grupos de documentos

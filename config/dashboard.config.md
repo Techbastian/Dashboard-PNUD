@@ -348,8 +348,7 @@ Cada pestaña: hasta 4 cifras y 6 gráficos. `meta` = nombre de la meta en `coho
 pestanas:
   - id: hitos
     titulo: Hitos
-    alertaFoco: true
-    metas: true
+    metas: true          # P-09: sin el aviso «fuera de Meta» (pedido de Sebastián, 16-oct)
     embudo: true
 
   - id: personas

@@ -19,6 +19,49 @@ export interface TipoEvento {
 }
 export interface Distribucion { titulo: string; datos: string; nota?: string; grafico?: 'barras' | 'dona' }
 
+/**
+ * Pregunta de un formulario que cuenta la función pública (A-17). `bloque` = slug del formulario; `clave` = clave de la
+ * respuesta (slug de la pregunta o los primeros 60 caracteres del texto). `grupo` agrupa preguntas en el informe.
+ */
+export interface Pregunta {
+  id: string; bloque: string; clave?: string; titulo: string; grupo?: string; nota?: string;
+  tipo: 'opcion' | 'escala' | 'multiple' | 'monto' | 'numero' | 'rango' | 'razon' | 'alguna';
+  /** Universo condicional: solo quien respondió `en` en la pregunta `clave` del mismo bloque. */
+  si?: { clave: string; en: string[]; texto?: string };
+  rangos?: { hasta?: number; label: string }[];
+  /** razon: clave del divisor. */ entre?: string;
+  /** alguna: claves que se revisan y prefijos que cuentan (p. ej. ["4", "5"]). */ claves?: string[]; en?: string[];
+}
+/** Foco territorial (D-43): lo que no coincide se muestra como alerta, no se bloquea. */
+export interface Foco { nombre: string; coincide: string[]; personas?: string; empresas?: string }
+export interface CifraPestana {
+  label: string; valor?: string; ayuda?: string;
+  /** Nombre de la meta en cohort_goals → «de N» con barra. */ meta?: string;
+  /** Denominador (ruta) → «de N <deLabel>», % y cuántas faltan. */ de?: string; deLabel?: string; faltan?: string;
+  /** Texto con rutas entre llaves: "En {vacantes.empresas_con_vacantes} empresas". */ nota?: string;
+  /** personas → tarjeta de alerta «fuera del foco»; empresas → agrega «N fuera del foco» a la nota. */ foco?: 'personas' | 'empresas';
+}
+export interface Grafico {
+  titulo: string; nota?: string; tipo: 'barras' | 'dona' | 'apilada' | 'pareadas';
+  datos?: string; pregunta?: string; preguntas?: string[];
+  /** dona: lista de barras debajo (ruta). */ debajo?: string;
+  /** barras: orden fijo de categorías (se muestran también las que están en 0). */ orden?: string[];
+  /** apilada/pareadas: categorías que suman la cifra (exactas o prefijo numérico: "4" = «4 - Alto»). */ destacar?: string[];
+  porGenero?: boolean; top?: number; paleta?: 'escala' | 'sino';
+}
+export interface Pestana {
+  id: string; titulo: string;
+  /** Bloques fijos de Hitos. */ alertaFoco?: boolean; metas?: boolean; embudo?: boolean;
+  cifras: CifraPestana[]; graficos: Grafico[]; pie?: string;
+}
+export interface HojaInforme {
+  nombre: string; descripcion?: string; contenido?: 'metas' | 'alertas';
+  /** grupo de preguntas (Pregunta.grupo). */ preguntas?: string;
+  listas?: { titulo: string; datos: string; nota?: string }[];
+  cifras?: { label: string; valor: string }[];
+}
+export interface Informe { hojas: HojaInforme[] }
+
 export interface DashboardConfig {
   identidad: {
     cohortId: string;
@@ -40,6 +83,11 @@ export interface DashboardConfig {
   distribuciones: Record<string, Distribucion[]>;
   secciones: string[];
   modulos: Modulo[];
+  /** D-43: si hay pestañas, el Dashboard se arma con ellas y `secciones` se ignora. */
+  pestanas: Pestana[];
+  preguntas: Pregunta[];
+  foco: Foco | null;
+  informe: Informe;
 }
 
 export function parseConfigMd(md: string): DashboardConfig {
@@ -65,7 +113,65 @@ export function parseConfigMd(md: string): DashboardConfig {
     distribuciones: c.distribuciones ?? {},
     secciones: c.secciones ?? ['metas', 'cifras', 'embudo', 'personas'],
     modulos: validarModulos(c.modulos),
+    ...validarPestanas(c.pestanas, c.preguntas, c.foco, c.informe),
   };
+}
+
+const TIPOS_PREGUNTA = ['opcion', 'escala', 'multiple', 'monto', 'numero', 'rango', 'razon', 'alguna'];
+const TIPOS_GRAFICO = ['barras', 'dona', 'apilada', 'pareadas'];
+
+function validarPestanas(p: unknown, q: unknown, f: unknown, inf: unknown) {
+  const err = (m: string): never => { throw new Error(`dashboard.config.md: ${m}`); };
+  if (q != null && !Array.isArray(q)) err('preguntas debe ser una lista');
+  const preguntas = ((q ?? []) as Partial<Pregunta>[]).map((x, i) => {
+    if (!x?.id || !/^[A-Za-z0-9_.-]{1,80}$/.test(x.id)) err(`preguntas[${i}].id falta o tiene caracteres no válidos`);
+    if (!x.bloque) err(`preguntas[${i}] (${x.id}) necesita bloque (slug del formulario)`);
+    const tipo = x.tipo ?? 'opcion';
+    if (!TIPOS_PREGUNTA.includes(tipo)) err(`preguntas[${i}].tipo «${tipo}» no existe (válidos: ${TIPOS_PREGUNTA.join(', ')})`);
+    if (tipo === 'alguna' ? !x.claves?.length || !x.en?.length : !x.clave) err(`preguntas[${i}] (${x.id}) necesita ${tipo === 'alguna' ? 'claves y en' : 'clave'}`);
+    if (['monto', 'numero', 'rango', 'razon'].includes(tipo) && !x.rangos?.length) err(`preguntas[${i}] (${x.id}) necesita rangos`);
+    if (tipo === 'razon' && !x.entre) err(`preguntas[${i}] (${x.id}) necesita entre`);
+    return { ...x, tipo, titulo: x.titulo ?? x.id } as Pregunta;
+  });
+  const ids = new Set(preguntas.map(x => x.id));
+  if (ids.size !== preguntas.length) err('preguntas: hay ids repetidos');
+  if (preguntas.length > 200) err('preguntas: máximo 200 (límite de la función pública)');
+  const existe = (id: string, donde: string) => { if (!ids.has(id)) err(`${donde}: la pregunta «${id}» no está en preguntas`); };
+
+  let foco: Foco | null = null;
+  if (f != null) {
+    const x = f as Partial<Foco>;
+    if (!x.nombre || !Array.isArray(x.coincide) || !x.coincide.length) err('foco necesita nombre y coincide (lista)');
+    if (x.personas) existe(x.personas, 'foco.personas');
+    foco = { nombre: x.nombre!, coincide: x.coincide!.map(String), personas: x.personas, empresas: x.empresas };
+  }
+
+  if (p != null && !Array.isArray(p)) err('pestanas debe ser una lista');
+  const pestanas = ((p ?? []) as Partial<Pestana>[]).map((x, i) => {
+    if (!x?.id || !x.titulo) err(`pestanas[${i}] necesita id y titulo`);
+    const graficos = (x.graficos ?? []).map((g, j) => {
+      const donde = `pestanas[${i}].graficos[${j}]`;
+      if (!g?.titulo || !TIPOS_GRAFICO.includes(g.tipo)) err(`${donde} necesita titulo y tipo (${TIPOS_GRAFICO.join(', ')})`);
+      if (!g.datos && !g.pregunta && !g.preguntas?.length) err(`${donde} necesita datos, pregunta o preguntas`);
+      if (g.pregunta) existe(g.pregunta, donde);
+      g.preguntas?.forEach(id => existe(id, donde));
+      return g;
+    });
+    const cifras = (x.cifras ?? []).map((c, j) => {
+      if (!c?.label || (!c.valor && c.foco !== 'personas')) err(`pestanas[${i}].cifras[${j}] necesita label y valor`);
+      if (c.foco && !foco) err(`pestanas[${i}].cifras[${j}] usa foco, pero falta el bloque foco`);
+      return c;
+    });
+    if (x.alertaFoco && !foco) err(`pestanas[${i}].alertaFoco necesita el bloque foco`);
+    return { ...x, cifras, graficos } as Pestana;
+  });
+
+  const hojas = (((inf as Partial<Informe> | undefined)?.hojas) ?? []).map((h, i) => {
+    if (!h?.nombre) err(`informe.hojas[${i}] necesita nombre`);
+    if (h.preguntas && !preguntas.some(x => x.grupo === h.preguntas)) err(`informe.hojas[${i}]: ninguna pregunta tiene grupo «${h.preguntas}»`);
+    return h;
+  });
+  return { pestanas, preguntas, foco, informe: { hojas } };
 }
 
 function validarModulos(m: unknown): Modulo[] {

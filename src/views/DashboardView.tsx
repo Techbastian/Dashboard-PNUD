@@ -14,6 +14,7 @@ import {
 } from '../ui/Comunes';
 import { ErrorBoundary } from '../ui/ErrorBoundary';
 import type { Distribucion } from '../lib/config';
+import DashboardPestanas from './DashboardPestanas';
 
 const id = config.identidad;
 
@@ -225,6 +226,16 @@ export default function DashboardView() {
       <div className="glass-card p-8 border-l-4 border-red-400">
         <p className="text-sm font-black text-red-600 uppercase tracking-widest mb-2">Error de conexión</p>
         <p className="text-xs text-slate-500">{error}</p>
+      </div>
+    );
+  }
+
+  // D-43: con pestañas en la config, el Dashboard ejecutivo reemplaza a la página única de `secciones`.
+  if (config.pestanas.length > 0) {
+    return (
+      <div className={`space-y-6 transition-opacity ${cargando ? 'opacity-80' : ''}`}>
+        <BarraEnVivo generatedAt={data.generated_at} error={error} cargando={cargando} onActualizar={recargar} />
+        <DashboardPestanas data={data} />
       </div>
     );
   }

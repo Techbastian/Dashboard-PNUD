@@ -10,6 +10,7 @@
  *   asistencia_matriculado[:<tipo>] matriculada y asistió a un evento (de ese tipo)
  *   documentos:<grupo>             tiene los documentos del grupo (config.grupos): todos, o al menos uno si es { alguno: [...] }
  *   postulado                      se postuló a alguna vacante (plataforma o externa)
+ *   postulado_proyecto             se postuló a una vacante de una empresa del proyecto, o externa (A-16)
  *   colocado                       tiene una colocación activa
  *   pendiente                      sin fuente aún (no es "no")
  */
@@ -30,6 +31,7 @@ export function reglaDe(e: Etapa): string {
   if (v === 'formacion.personas_con_asistencia') return 'asistencia';
   if ((m = v.match(/^grupos(?:_mujeres)?\.(.+)$/))) return `documentos:${m[1]}`;
   if (v === 'empleabilidad.personas_postuladas_vacantes') return 'postulado';
+  if (v === 'empleabilidad.personas_postuladas_aliadas') return 'postulado_proyecto';
   if (v === 'empleabilidad.colocados') return 'colocado';
   if (v === 'matriculados') return 'matriculado';
   if (v.startsWith('postulaciones.')) return 'registro';
@@ -40,6 +42,7 @@ export function reglaDe(e: Etapa): string {
 export interface Indice {
   asistio: Map<string, Set<string>>; // persona → tipos de evento a los que asistió ('*' = cualquiera)
   postulado: Set<string>;
+  postuladoProyecto: Set<string>;
   colocado: Set<string>;
 }
 
@@ -55,6 +58,7 @@ export function indexar(d: DatosCohorte): Indice {
   return {
     asistio,
     postulado: new Set(d.postulaciones.map(p => p.personaId)),
+    postuladoProyecto: new Set(d.postulaciones.filter(p => p.atribuible).map(p => p.personaId)),
     colocado: new Set(d.colocaciones.filter(c => c.activa).map(c => c.personaId)),
   };
 }
@@ -83,6 +87,7 @@ export function evaluar(regla: string, p: Persona, d: DatosCohorte, ix: Indice):
       return alguno ? claves.some(tiene) : claves.every(tiene);
     }
     case 'postulado': return ix.postulado.has(p.id);
+    case 'postulado_proyecto': return ix.postuladoProyecto.has(p.id);
     case 'colocado': return ix.colocado.has(p.id);
     default: return null;
   }

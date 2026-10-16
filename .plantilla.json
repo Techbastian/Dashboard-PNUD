@@ -1,12 +1,12 @@
 {
   "plantilla": "disruptia-dashboard-base",
-  "version": "2.3.0",
-  "commit": "f6c51ff",
+  "version": "2.4.0",
+  "commit": "37c30c0",
   "creado": "2026-09-28",
   "proyecto": "Proyecto PNUD",
   "slug": "pnud",
   "cohorte": "24cc7928-4a91-4a07-b999-286f9522ee3d",
-  "actualizado": "2026-10-01",
+  "actualizado": "2026-10-16",
   "historial": [
     {
       "version": "2.0.0",
@@ -30,6 +30,12 @@
       "version": "2.3.0",
       "commit": "f6c51ff",
       "fecha": "2026-10-01",
+      "accion": "actualizado"
+    },
+    {
+      "version": "2.4.0",
+      "commit": "37c30c0",
+      "fecha": "2026-10-16",
       "accion": "actualizado"
     }
   ]

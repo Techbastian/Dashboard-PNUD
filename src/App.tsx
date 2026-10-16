@@ -7,6 +7,7 @@ import ParticipantesView from './views/ParticipantesView';
 import ColocacionView from './views/ColocacionView';
 import EmpresasView from './views/EmpresasView';
 import ListadosView from './views/ListadosView';
+import InformesView from './views/InformesView';
 import { AuthProvider } from './lib/auth';
 import { CohorteProvider } from './lib/datos';
 import { config } from './lib/config';
@@ -15,7 +16,7 @@ import type { ReactElement } from 'react';
 
 /**
  * Rutas (D-11). Mismos módulos y orden que FQSD (D-35). Los privados pasan por <ModuloPrivado> (sesión del
- * equipo, D-32). Informes aún no existe (plan E8) y muestra su lugar.
+ * equipo, D-32). Informes (E8, D-43): Excel de conteos por pregunta + PDF de las pestañas.
  */
 const VISTAS: Partial<Record<Modulo, () => ReactElement>> = {
   participantes: () => <ParticipantesView />,
@@ -23,6 +24,7 @@ const VISTAS: Partial<Record<Modulo, () => ReactElement>> = {
   empresas: () => <EmpresasView />,
   calendario: () => <CalendarioView />,
   listados: () => <ListadosView />,
+  informes: () => <InformesView />,
 };
 
 export default function App() {

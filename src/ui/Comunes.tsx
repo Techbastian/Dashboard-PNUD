@@ -109,10 +109,13 @@ export function HorizontalBar({ label, value, maxValue, color = 'bg-brand', subt
 }
 
 /** Lista de barras de una distribución, con "Ver N más" cuando es larga. Muestra cantidad y %. */
-export function ListaBarras({ datos, max = 8 }: { datos: { categoria: string; n: number }[] | null; max?: number }) {
+export function ListaBarras({ datos, max = 8, total: base }: {
+  datos: { categoria: string; n: number }[] | null; max?: number;
+  /** Denominador del %; por defecto la suma (en selección múltiple, pasar quienes respondieron). */ total?: number;
+}) {
   const [todo, setTodo] = useState(false);
   if (!datos || datos.length === 0) return <SinDatos />;
-  const total = datos.reduce((s, d) => s + d.n, 0);
+  const total = base ?? datos.reduce((s, d) => s + d.n, 0);
   const tope = Math.max(...datos.map(d => d.n));
   const vis = todo ? datos : datos.slice(0, max);
   return (

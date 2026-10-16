@@ -19,3 +19,17 @@ export async function descargarXlsx(archivo: string, hojas: Hoja<unknown>[]) {
   }
   XLSX.writeFile(wb, archivo);
 }
+
+/** Hoja libre: filas ya armadas (varias tablas una debajo de otra, como el informe por pregunta de Informes). */
+export interface HojaLibre { nombre: string; filas: (string | number | null)[][]; anchos?: number[] }
+
+export async function descargarHojas(archivo: string, hojas: HojaLibre[]) {
+  const XLSX = await import('xlsx');
+  const wb = XLSX.utils.book_new();
+  for (const h of hojas) {
+    const ws = XLSX.utils.aoa_to_sheet(h.filas.map(f => f.map(v => v ?? '')));
+    if (h.anchos) ws['!cols'] = h.anchos.map(wch => ({ wch }));
+    XLSX.utils.book_append_sheet(wb, ws, h.nombre.replace(/[\\/?*[\]:]/g, ' ').slice(0, 31));
+  }
+  XLSX.writeFile(wb, archivo);
+}

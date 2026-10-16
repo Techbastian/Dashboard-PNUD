@@ -1,11 +1,34 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase, supabaseConfigurado } from './supabase';
 import { config } from './config';
+import { paraFuncion, preguntasDelDashboard } from './respuestas';
+import type { Pregunta } from './config';
 
 export type PublicStats = Record<string, unknown> & { generated_at?: string; version?: number };
 
+/** Opciones de la función v7 (A-17). `hasta` y `filtro` solo tienen efecto con sesión del equipo (is_admin). */
+export interface OpcionesStats {
+  preguntas?: Pregunta[];
+  hasta?: string;
+  filtro?: { bloque: string; clave: string; contiene: string[]; excluir?: boolean };
+}
+
+/** Una consulta a dashboard_public_stats. La usa el Dashboard (cada N s) y el módulo Informes (con sesión). */
+export async function consultarStats(op: OpcionesStats = {}): Promise<PublicStats> {
+  if (!supabase) throw new Error(supabaseConfigurado ? 'Cliente no disponible' : 'Falta VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY en .env.local');
+  const { data, error } = await supabase.rpc('dashboard_public_stats', {
+    p_cohort_id: config.identidad.cohortId,
+    p_grupos: config.grupos,
+    p_opciones: { preguntas: (op.preguntas ?? []).map(paraFuncion), hasta: op.hasta, filtro: op.filtro },
+  });
+  if (error) throw new Error(error.message);
+  if (data == null) throw new Error('La cohorte no existe o está en borrador.');
+  return data as PublicStats;
+}
+
 /**
- * Datos en vivo (D-02, D-13): llama a dashboard_public_stats(cohortId, grupos) y re-consulta cada N segundos.
+ * Datos en vivo (D-02, D-13): llama a dashboard_public_stats(cohortId, grupos, opciones) y re-consulta cada N segundos
+ * (solo con la pestaña visible). Pide solo las preguntas que usan las pestañas del Dashboard.
  * En un re-fetch se conserva el dato anterior en pantalla (sin parpadeo de esqueleto).
  */
 export function usePublicStats() {
@@ -16,21 +39,15 @@ export function usePublicStats() {
 
   const cargar = useCallback(async () => {
     if (/^0{8}-/.test(config.identidad.cohortId)) { setCargando(false); return; }   // plantilla sin configurar
-    if (!supabase) {
-      setError(supabaseConfigurado ? 'Cliente no disponible' : 'Falta VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY en .env.local');
-      setCargando(false);
-      return;
-    }
     setCargando(true);
-    const { data: res, error: err } = await supabase.rpc('dashboard_public_stats', {
-      p_cohort_id: config.identidad.cohortId,
-      p_grupos: config.grupos,
-    });
-    if (!vivo.current) return;
-    if (err) setError(err.message);
-    else if (res == null) setError('La cohorte no existe o está en borrador.');
-    else { setData(res as PublicStats); setError(null); }
-    setCargando(false);
+    try {
+      const res = await consultarStats({ preguntas: preguntasDelDashboard() });
+      if (!vivo.current) return;
+      setData(res); setError(null);
+    } catch (e) {
+      if (vivo.current) setError((e as Error).message);
+    }
+    if (vivo.current) setCargando(false);
   }, []);
 
   useEffect(() => {

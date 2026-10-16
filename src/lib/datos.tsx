@@ -33,7 +33,11 @@ export interface Evento {
 }
 export type EstadoAsistencia = 'agendado' | 'cancelado' | 'asistio' | 'no_asistio' | 'justificado' | 'pendiente' | 'no_aplica';
 export interface Asistencia { id: string; eventoId: string; personaId: string; estado: EstadoAsistencia; marcadoEn: string | null; marcadoPor: string | null; observaciones: string | null }
-export interface Postulacion { id: string; personaId: string; origen: 'plataforma' | 'externa'; vacante: string; empresa: string | null; estado: string | null; fecha: string | null; url: string | null; observaciones: string | null }
+export interface Postulacion {
+  id: string; personaId: string; origen: 'plataforma' | 'externa'; vacante: string; empresa: string | null; estado: string | null; fecha: string | null; url: string | null; observaciones: string | null;
+  /** A-16: a una vacante de una empresa del proyecto (o creada para la cohorte), o externa registrada por el equipo. */
+  atribuible: boolean;
+}
 export interface Colocacion { id: string; personaId: string; empresa: string | null; cargo: string; inicio: string; modalidad: string | null; estado: string | null; activa: boolean; duracionMeses: number | null }
 export interface Vacante {
   id: string; empresaId: string | null; titulo: string; puestos: number; salario: string | null; modalidad: string | null; contrato: string | null;
@@ -95,6 +99,16 @@ export function claveDePregunta(q: { slug?: string | null; label?: string | null
 }
 
 type Fila = Record<string, unknown>;
+
+/** Género como lo ve la persona en el formulario (la plataforma guarda `femenino`, `no_binario`, …). */
+const GENEROS: Record<string, string> = {
+  femenino: 'Femenino', mujer: 'Femenino', masculino: 'Masculino', hombre: 'Masculino',
+  no_binario: 'No binario / No conforme', otro: 'Otro', prefiero_no_decir: 'Prefiero no decir',
+};
+function generoLegible(v: string | null | undefined): string | null {
+  const t = (v ?? '').trim();
+  return t ? GENEROS[t.toLowerCase()] ?? t : null;
+}
 const s = (v: unknown) => (v == null || v === '' ? null : String(v));
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -132,7 +146,7 @@ async function cargarTodo(): Promise<DatosCohorte> {
 
   const apps = await todas('project_applications', 'id, candidate_id, status, created_at, custom_answers', q => q.eq('cohort_id', COHORTE));
   const idsPersonas = apps.map(a => String(a.candidate_id ?? '')).filter(Boolean);
-  const [cands, matriculas, eventos, colocRaw, postPlat, postExt, enlaces, vacRaw] = await Promise.all([
+  const [cands, matriculas, eventos, colocRaw, postPlat, postExt, enlaces, vacRaw, socio] = await Promise.all([
     porIds('candidates', 'id, first_name, last_name, document_type, document_number, email, phone, city, gender, birth_date', 'id', idsPersonas),
     todas('program_enrollments', 'id, candidate_id, status, enrolled_at', q => q.eq('cohort_id', COHORTE)),
     todas('events', 'id, nombre, tipo, fase, modalidad, ubicacion, fecha_hora_inicio, fecha_hora_fin, descripcion, toma_asistencia, external_source, meeting_link', q => q.eq('cohort_id', COHORTE).order('fecha_hora_inicio')),
@@ -141,6 +155,8 @@ async function cargarTodo(): Promise<DatosCohorte> {
     porIds('participant_vacancy_applications', 'id, candidate_id, vacancy_name, company_name, application_url, observations, created_at', 'candidate_id', idsPersonas),
     todas('company_cohorts', 'company_id', q => q.eq('cohort_id', COHORTE)),
     todas('jobs', 'id, company_id, title, total_positions, salary_range, modality, employment_type, required_education_level, required_experience_months, status, is_published, visibility, cities', q => q.eq('cohort_id', COHORTE)),
+    // Campo «Género» del registro de la plataforma (D-42); candidates.gender queda de respaldo para registros antiguos.
+    porIds('socio_demographic_data', 'id, candidate_id, gender_identity', 'candidate_id', idsPersonas),
   ]);
   const idsEventos = eventos.map(e => String(e.id));
   const [asistRaw, asistEmpRaw, evidRaw] = await Promise.all([
@@ -150,7 +166,7 @@ async function cargarTodo(): Promise<DatosCohorte> {
   ]);
 
   // Vacantes y empresas que hacen falta para nombrar postulaciones y colocaciones de la plataforma.
-  const jobsExtra = await porIds('jobs', 'id, company_id, title', 'id', [...postPlat.map(p => String(p.job_id ?? '')), ...colocRaw.map(c => String(c.job_id ?? ''))]);
+  const jobsExtra = await porIds('jobs', 'id, company_id, title, cohort_id', 'id', [...postPlat.map(p => String(p.job_id ?? '')), ...colocRaw.map(c => String(c.job_id ?? ''))]);
   const idsEmpresas = [...enlaces.map(e => String(e.company_id)), ...jobsExtra.map(j => String(j.company_id ?? '')), ...colocRaw.map(c => String(c.company_id ?? ''))];
   const emps = await porIds('companies', 'id, company_name, trade_name, nit, size_range, industry, operation_cities, address, contact_name, contact_phone, contact_email, created_at', 'id', idsEmpresas);
   const empPorId = new Map(emps.map(e => [String(e.id), e]));
@@ -158,6 +174,9 @@ async function cargarTodo(): Promise<DatosCohorte> {
   const nombreEmpresa = (id: unknown) => { const e = empPorId.get(String(id ?? '')); return e ? String(e.trade_name || e.company_name) : null; };
 
   const candPorId = new Map(cands.map(c => [String(c.id), c]));
+  // Sin unique en socio_demographic_data: gana la fila más reciente (mismo criterio que la función pública v6).
+  const generoPorId = new Map([...socio].sort((x, y) => Number(x.id) - Number(y.id))
+    .filter(r => s(r.gender_identity)).map(r => [String(r.candidate_id), String(r.gender_identity)]));
   const matPorPersona = new Map(matriculas.map(m => [String(m.candidate_id), m]));
   const personas: Persona[] = apps.filter(a => a.candidate_id).map(a => {
     const c = candPorId.get(String(a.candidate_id)) ?? {};
@@ -166,7 +185,7 @@ async function cargarTodo(): Promise<DatosCohorte> {
       id: String(a.candidate_id),
       nombre: [c.first_name, c.last_name].filter(Boolean).join(' ').trim() || 'Sin nombre',
       tipoDoc: s(c.document_type), documento: s(c.document_number), correo: s(c.email), celular: s(c.phone),
-      ciudad: s(c.city), genero: s(c.gender), nacimiento: s(c.birth_date),
+      ciudad: s(c.city), genero: generoLegible(generoPorId.get(String(a.candidate_id)) ?? s(c.gender)), nacimiento: s(c.birth_date),
       postulacionId: String(a.id), estado: s(a.status), registradaEl: s(a.created_at),
       respuestas: (a.custom_answers ?? {}) as Persona['respuestas'],
       matricula: m ? { id: Number(m.id), estado: s(m.status), fecha: s(m.enrolled_at) } : null,
@@ -212,10 +231,11 @@ async function cargarTodo(): Promise<DatosCohorte> {
       ...postPlat.map(p => {
         const j = jobPorId.get(String(p.job_id ?? ''));
         return { id: String(p.id), personaId: String(p.candidate_id), origen: 'plataforma' as const, vacante: String(j?.title ?? 'Vacante de la plataforma'),
-          empresa: nombreEmpresa(j?.company_id), estado: s(p.status), fecha: s(p.created_at), url: null, observaciones: null };
+          empresa: nombreEmpresa(j?.company_id), estado: s(p.status), fecha: s(p.created_at), url: null, observaciones: null,
+          atribuible: Boolean(j && (idsVinculadas.has(String(j.company_id ?? '')) || String(j.cohort_id ?? '') === COHORTE)) };
       }),
       ...postExt.map(p => ({ id: String(p.id), personaId: String(p.candidate_id), origen: 'externa' as const, vacante: String(p.vacancy_name),
-        empresa: s(p.company_name), estado: null, fecha: s(p.created_at), url: s(p.application_url), observaciones: s(p.observations) })),
+        empresa: s(p.company_name), estado: null, fecha: s(p.created_at), url: s(p.application_url), observaciones: s(p.observations), atribuible: true })),
     ].sort((a, b) => String(b.fecha).localeCompare(String(a.fecha))),
     colocaciones: colocRaw.map(c => ({
       id: String(c.id), personaId: String(c.talent_id), empresa: nombreEmpresa(c.company_id) ?? (jobPorId.get(String(c.job_id ?? '')) ? nombreEmpresa(jobPorId.get(String(c.job_id))!.company_id) : null),

@@ -12,5 +12,5 @@ export const MODULO_INFO: Record<Modulo, { label: string; ruta: string; privado:
   empresas:      { label: 'Empresas',      ruta: '/empresas',      privado: true, etapa: 'E6', resumen: 'Empresas vinculadas al proyecto, con sus datos y vacantes.' },
   calendario:    { label: 'Calendario',    ruta: '/calendario',    privado: true, etapa: 'E3', resumen: 'Sesiones y eventos en vista de mes o agenda: crear, agendar personas y marcar asistencia.' },
   listados:      { label: 'Listados',      ruta: '/listados',      privado: true, etapa: 'E7', resumen: 'Listados en Excel con filtros combinables.' },
-  informes:      { label: 'Informes',      ruta: '/informes',      privado: true, etapa: 'E8', resumen: 'Informe ejecutivo en PDF para el aliado o el financiador.' },
+  informes:      { label: 'Informes',      ruta: '/informes',      privado: true, etapa: 'E8', resumen: 'Excel de conteos por pregunta (sin datos personales) y PDF ejecutivo con las pestañas del Dashboard.' },
 };

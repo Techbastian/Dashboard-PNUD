@@ -154,7 +154,8 @@ El Dashboard es ejecutivo y el detalle está en **Informes**. Con `pestanas`, el
 
 ## Foco territorial
 
-Decisión 6: el foco es **Meta**. Las personas y empresas de otros departamentos no se bloquean; se muestran como alerta.
+Decisión 6: el foco es **Meta**. Las personas y empresas de otros departamentos no se bloquean. P-09: **sin alertas** en el
+Dashboard ni hoja de alertas en el informe; el foco solo se usa en el filtro «Solo Meta / Solo fuera de Meta» de Informes.
 `coincide` = textos que identifican al foco (sin importar tildes ni mayúsculas). Hace falta «villavicencio» porque el
 campo departamento tiene respuestas antiguas en texto libre («Villavicencio meta», «Villavicencio-Meta»…).
 
@@ -357,7 +358,6 @@ pestanas:
       - { label: Personas registradas, valor: "formularios[recorrer-pnud].personas", meta: Personas registradas }
       - { label: Mujeres registradas,  valor: "formularios[recorrer-pnud].mujeres",  meta: Mujeres registradas }
       - { label: Con línea base,       valor: "formularios[linea-base].personas", de: "formularios[recorrer-pnud].personas", deLabel: registradas, faltan: aún sin línea base }
-      - { label: Fuera de Meta,        foco: personas }
     graficos:
       - { titulo: Género y edad, nota: "Registro · campo «Género»", tipo: dona, datos: postulaciones.por_genero, debajo: postulaciones.por_edad_rangos }
       - titulo: Nivel educativo
@@ -379,7 +379,7 @@ pestanas:
   - id: empresas
     titulo: Empresas
     cifras:
-      - { label: Empresas aliadas,        valor: empresas.aliadas, foco: empresas }
+      - { label: Empresas aliadas,        valor: empresas.aliadas }
       - { label: Empresas sensibilizadas, valor: "empresas.asistencia_por_tipo[sensibilizacion].empresas", meta: Empresas sensibilizadas en empleo inclusivo }
       - { label: Vacantes del proyecto,   valor: vacantes.total, nota: "En {vacantes.empresas_con_vacantes} empresas" }
       - { label: Personas vinculadas,     valor: empleabilidad.colocados, meta: Personas vinculadas laboralmente }
@@ -431,8 +431,4 @@ informe:
         - { titulo: "Vacantes: salario", datos: vacantes.por_salario }
         - { titulo: "Vacantes: tipo de contrato", datos: vacantes.por_contrato }
         - { titulo: "Vacantes: modalidad", datos: vacantes.por_modalidad }
-    - nombre: 5 Alertas
-      contenido: alertas
-      descripcion: Personas y empresas fuera de Meta; personas registradas sin línea base
-      cifras: [{ label: Personas registradas, valor: "formularios[recorrer-pnud].personas" }, { label: Personas con línea base, valor: "formularios[linea-base].personas" }]
 ```

@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blueprint · Dashboard PNUD</title>
+<style>
+  :root{
+    --brand:#0b3b6b; --accent:#025ea7; --bg:#f8fafc; --line:#e2e8f0; --muted:#64748b; --ink:#0f172a;
+    --warn:#b45309; --warnbg:#fffbeb; --warnline:#fcd34d;
+    --r1:#dbeafe; --r2:#93c5fd; --r3:#3b82f6; --r4:#1d4ed8; --r5:#0b3b6b;
+    --muj:#025ea7; --hom:#94a3b8; --ok:#15803d; --okbg:#dcfce7;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:13px/1.4 "Segoe UI",Inter,system-ui,sans-serif}
+  .shell{display:flex;min-height:100vh}
+  .side{width:200px;background:var(--brand);color:#cbd5e1;padding:18px 12px;flex:none}
+  .side .logo{color:#fff;font-weight:700;font-size:15px;margin:0 6px 18px}
+  .side .it{padding:8px 10px;border-radius:8px;margin-bottom:2px}
+  .side .it.on{background:rgba(255,255,255,.14);color:#fff;font-weight:600}
+  .side .lock{font-size:10px;opacity:.7;margin-left:4px}
+  main{flex:1;padding:22px 26px;min-width:0}
+  .bp{font-size:11px;color:var(--warn);background:var(--warnbg);border:1px dashed var(--warnline);border-radius:8px;padding:6px 10px;margin-bottom:14px}
+  h1{font-size:22px;margin:0}
+  .sub{color:var(--muted);margin:2px 0 14px}
+  .bar-top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+  .tabs{display:flex;gap:4px;background:#e2e8f0;padding:4px;border-radius:10px}
+  .tab{padding:7px 16px;border-radius:8px;color:#334155;font-weight:600}
+  .tab.on{background:#fff;color:var(--brand);box-shadow:0 1px 3px rgba(0,0,0,.1)}
+  .spacer{flex:1}
+  .upd{color:var(--muted);font-size:12px}
+  .grid{display:grid;gap:14px;margin-bottom:14px}
+  .g4{grid-template-columns:repeat(4,1fr)} .g3{grid-template-columns:repeat(3,1fr)} .g2{grid-template-columns:repeat(2,1fr)}
+  .card{background:#fff;border:1px solid #f1f5f9;border-radius:16px;padding:14px 16px;box-shadow:0 2px 15px -3px rgba(0,0,0,.07)}
+  .card h3{font-size:13px;margin:0 0 2px} .card .q{font-size:11px;color:var(--muted);margin-bottom:10px}
+  .kpi .v{font-size:26px;font-weight:700;color:var(--brand)} .kpi .v small{font-size:14px;color:var(--muted);font-weight:500}
+  .kpi .l{color:var(--muted);font-size:12px} .kpi .d{font-size:11px;margin-top:4px;color:#334155}
+  .kpi.warn{background:var(--warnbg);border-color:var(--warnline)} .kpi.warn .v{color:var(--warn)}
+  .prog{height:6px;background:#e2e8f0;border-radius:4px;margin-top:6px;overflow:hidden} .prog i{display:block;height:100%;background:var(--accent)}
+  .alert{display:flex;gap:10px;align-items:center;border-radius:12px;padding:9px 14px;margin-bottom:14px;border:1px solid;background:var(--warnbg);border-color:var(--warnline);color:#78350f}
+  /* hitos */
+  .prod h3{font-size:14px;color:var(--brand)} .prod .pq{font-size:11px;color:var(--muted);margin-bottom:8px}
+  .meta{display:grid;grid-template-columns:1fr 150px 92px;gap:10px;align-items:center;padding:9px 0;border-top:1px solid #f1f5f9}
+  .meta:first-of-type{border-top:0}
+  .meta .nm{font-size:13px} .meta .nm small{display:block;color:var(--muted);font-size:11px}
+  .meta .t{height:10px;background:#f1f5f9;border-radius:5px;overflow:hidden} .meta .t i{display:block;height:100%;background:var(--accent);border-radius:5px}
+  .meta .n{text-align:right;font-variant-numeric:tabular-nums;font-weight:700;color:var(--brand)} .meta .n small{display:block;font-weight:500;color:var(--muted);font-size:11px}
+  .st{white-space:nowrap;font-size:10px;font-weight:700;border-radius:8px;padding:1px 7px;margin-left:6px;vertical-align:1px}
+  .st.cur{background:#dbeafe;color:#1e40af} .st.ok{background:var(--okbg);color:var(--ok)} .st.nf{background:#f1f5f9;color:var(--muted)} .st.ini{background:#fef3c7;color:#92400e}
+  .funnel{display:flex;gap:6px;align-items:stretch}
+  .funnel .s{flex:1;border-radius:10px;padding:10px 12px;color:#fff}
+  .funnel .s b{display:block;font-size:22px} .funnel .s span{font-size:12px;opacity:.9}
+  /* charts */
+  .hb{display:grid;grid-template-columns:minmax(110px,40%) 1fr 64px;gap:6px;align-items:center;margin:5px 0;font-size:12px}
+  .hb .t{height:12px;background:#f1f5f9;border-radius:3px;overflow:hidden} .hb .t i{display:block;height:100%;background:var(--accent)}
+  .hb .n{text-align:right;color:#334155;font-variant-numeric:tabular-nums}
+  .pair .t{height:8px;margin:1px 0} .pair .t.h i{background:var(--hom)}
+  .stk{display:grid;grid-template-columns:110px 1fr 46px;gap:8px;align-items:center;margin:6px 0;font-size:12px}
+  .stk .s{display:flex;height:16px;border-radius:3px;overflow:hidden} .stk .s i{display:block;height:100%}
+  .stk .n{text-align:right;font-weight:700;color:var(--brand)}
+  .legend{display:flex;gap:10px;flex-wrap:wrap;font-size:11px;color:var(--muted);margin-top:8px}
+  .legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+  .donut{display:flex;align-items:center;gap:14px}
+  .note{font-size:11px;color:var(--muted);margin-top:8px}
+  .page{display:none} .page.on{display:block}
+  /* informes */
+  .form label{display:block;font-size:12px;color:var(--muted);margin:10px 0 4px}
+  .inp{border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:#fff}
+  .chk{display:flex;gap:8px;align-items:flex-start;padding:7px 0;border-top:1px solid #f1f5f9;font-size:12px}
+  .chk:first-of-type{border-top:0}
+  .box{width:15px;height:15px;border-radius:4px;border:1.5px solid var(--accent);background:var(--accent);flex:none;margin-top:1px;position:relative}
+  .box::after{content:"✓";color:#fff;font-size:11px;position:absolute;left:2px;top:-2px}
+  .chk small{display:block;color:var(--muted)}
+  .btn{display:inline-block;border-radius:10px;padding:10px 16px;font-weight:600;margin-right:8px}
+  .btn.p{background:var(--accent);color:#fff} .btn.s{border:1px solid var(--accent);color:var(--accent);background:#fff}
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  th{text-align:left;color:var(--muted);font-weight:600;border-bottom:1px solid var(--line);padding:6px}
+  td{border-bottom:1px solid #f1f5f9;padding:6px}
+  .xl{font-family:Consolas,monospace;font-size:11px}
+</style>
+</head>
+<body>
+<div class="shell">
+  <aside class="side">
+    <div class="logo">Recorrer · PNUD</div>
+    <div class="it" id="nav-dash">Dashboard</div>
+    <div class="it">Participantes <span class="lock">🔒</span></div>
+    <div class="it">Colocación <span class="lock">🔒</span></div>
+    <div class="it">Empresas <span class="lock">🔒</span></div>
+    <div class="it">Calendario <span class="lock">🔒</span></div>
+    <div class="it">Listados <span class="lock">🔒</span></div>
+    <div class="it" id="nav-inf">Informes <span class="lock">🔒</span></div>
+  </aside>
+  <main>
+    <div class="bp">BLUEPRINT v3 · versión ejecutiva · datos de personas ilustrativos; empresas y vacantes con cifras reales del 15-oct</div>
+
+    <div id="dash-head">
+      <h1>Dashboard</h1>
+      <div class="sub">Recorrer · Ruta de Inclusión Laboral · Economía para la Paz · Meta · PNUD</div>
+      <div class="bar-top">
+        <div class="tabs">
+          <div class="tab" data-t="hit">Hitos</div>
+          <div class="tab" data-t="per">Personas</div>
+          <div class="tab" data-t="emp">Empresas</div>
+        </div>
+        <div class="spacer"></div>
+        <div class="upd">Actualizado en vivo · 15-oct-2026 10:42</div>
+      </div>
+    </div>
+
+    <!-- ===================== HITOS ===================== -->
+    <section class="page" id="hit">
+      <div class="alert"><span>⚠</span><span><b>9 personas y 2 empresas fuera de Meta.</b> No se bloquean, pero quedan fuera del foco del proyecto. Detalle en Informes.</span></div>
+      <div class="grid g2" id="prods"></div>
+      <div class="card"><h3>Ruta de la persona</h3><div class="q">Cuántas personas llegan a cada etapa</div>
+        <div class="funnel" id="funnel"></div></div>
+    </section>
+
+    <!-- ===================== PERSONAS ===================== -->
+    <section class="page" id="per">
+      <div class="grid g4">
+        <div class="card kpi"><div class="l">Personas registradas</div><div class="v">112 <small>de 200</small></div><div class="prog"><i style="width:56%"></i></div></div>
+        <div class="card kpi"><div class="l">Mujeres registradas</div><div class="v">62 <small>de 100</small></div><div class="prog"><i style="width:62%"></i></div></div>
+        <div class="card kpi"><div class="l">Con línea base</div><div class="v">85 <small>de 112 registradas</small></div><div class="d">76% · 27 personas aún sin línea base</div></div>
+        <div class="card kpi warn"><div class="l">⚠ Fuera de Meta</div><div class="v">9</div><div class="d">Bogotá 4 · Cauca 3 · Nariño 1 · Huila 1</div></div>
+      </div>
+      <div class="grid g3">
+        <div class="card"><h3>Género y edad</h3><div class="q">Registro · género del campo «Género»</div><div id="p_gen"></div><div style="height:8px"></div><div id="p_edad"></div></div>
+        <div class="card"><h3>Nivel educativo</h3><div class="q">Registro · sin agrupar, de menor a mayor</div><div id="p_edu"></div></div>
+        <div class="card"><h3>¿Qué tan capaz se siente de conseguir empleo?</h3><div class="q">Línea base · % que responde 4 o 5</div><div id="p_cap"></div><div class="legend" id="p_capleg"></div></div>
+      </div>
+      <div class="grid g3">
+        <div class="card"><h3>Las 5 barreras más altas</h3><div class="q">Línea base · % que la califica 4 o 5 · mujeres vs hombres</div><div id="p_barr"></div>
+          <div class="legend"><span><i style="background:var(--muj)"></i>Mujeres</span><span><i style="background:var(--hom)"></i>Hombres</span></div></div>
+        <div class="card"><h3>¿Sus ingresos le alcanzan para…?</h3><div class="q">Línea base · el número es % que responde «No»</div><div id="p_cubre"></div>
+          <div class="legend"><span><i style="background:var(--accent)"></i>Sí</span><span><i style="background:#f87171"></i>No</span><span><i style="background:#e2e8f0"></i>Prefiere no responder</span></div></div>
+        <div class="card"><h3>Ingresos personales del mes pasado</h3><div class="q">Línea base · rangos hasta $5.000.000</div><div id="p_ing"></div></div>
+      </div>
+      <div class="note">El detalle completo (municipio, salud, vivienda, inclusión financiera, expectativas, las 15 barreras…) se descarga en Informes.</div>
+    </section>
+
+    <!-- ===================== EMPRESAS ===================== -->
+    <section class="page" id="emp">
+      <div class="grid g4">
+        <div class="card kpi"><div class="l">Empresas aliadas</div><div class="v">48</div><div class="d">2 operan fuera de Meta (Huila)</div></div>
+        <div class="card kpi"><div class="l">Empresas sensibilizadas</div><div class="v">0 <small>de 50</small></div><div class="prog"><i style="width:0"></i></div></div>
+        <div class="card kpi"><div class="l">Vacantes del proyecto</div><div class="v">15</div><div class="d">En 11 empresas</div></div>
+        <div class="card kpi"><div class="l">Personas vinculadas</div><div class="v">0 <small>de 150</small></div><div class="prog"><i style="width:0"></i></div></div>
+      </div>
+      <div class="grid g2">
+        <div class="card"><h3>Tamaño de las empresas</h3><div class="q">Por número de trabajadores</div><div id="e_tam"></div></div>
+        <div class="card"><h3>Sector económico</h3><div class="q">Todas las categorías</div><div id="e_sec"></div></div>
+      </div>
+      <div class="grid g2">
+        <div class="card"><h3>Nivel educativo que piden las vacantes</h3><div class="q">Por vacante</div><div id="v_edu"></div></div>
+        <div class="card"><h3>Salario de las vacantes</h3><div class="q">En SMMLV</div><div id="v_sal"></div></div>
+      </div>
+      <div class="note">Municipio de operación, experiencia, tipo de contrato y modalidad se descargan en Informes.</div>
+    </section>
+
+    <!-- ===================== INFORMES ===================== -->
+    <section class="page" id="inf">
+      <h1>Informes</h1>
+      <div class="sub">Solo equipo · descarga el detalle que no está en el Dashboard · sin datos personales</div>
+      <div class="grid" style="grid-template-columns:1fr 1.5fr">
+        <div class="card form">
+          <h3>Generar informe</h3>
+          <label>Fecha de corte</label><div class="inp">15/10/2026</div>
+          <label>Departamento</label><div class="inp">Todos (Meta y fuera de Meta por separado) ▾</div>
+          <label>Desagregar por</label><div class="inp">Género (Mujeres / Hombres / Otras) ▾</div>
+          <label style="margin-top:14px">Hojas del informe</label>
+          <div class="chk"><span class="box"></span><span>1 · Hitos<small>13 metas: actual, objetivo, % avance, estado</small></span></div>
+          <div class="chk"><span class="box"></span><span>2 · Personas · Registro<small>Género, edad, departamento, municipio, área, nivel educativo, actividad, formación, competencias, habilidades</small></span></div>
+          <div class="chk"><span class="box"></span><span>3 · Personas · Línea base<small>Todas las preguntas de selección: barreras (15), empleabilidad, autonomía económica, salud, hogar y vivienda, expectativas · montos en rangos</small></span></div>
+          <div class="chk"><span class="box"></span><span>4 · Empresas y vacantes<small>Tamaño, sector, municipio · nivel educativo, experiencia, salario, contrato, modalidad · intermediación</small></span></div>
+          <div class="chk"><span class="box"></span><span>5 · Alertas<small>Personas y empresas fuera de Meta (conteo por departamento), registradas sin línea base</small></span></div>
+          <div style="margin-top:16px"><span class="btn p">⬇ Descargar Excel</span><span class="btn s">⬇ PDF ejecutivo</span></div>
+          <div class="note">Excel = detalle (una tabla por pregunta). PDF = las 3 pestañas del Dashboard en una página cada una.</div>
+        </div>
+        <div class="card">
+          <h3>Vista previa · hoja «3 · Línea base»</h3>
+          <div class="q">Cada pregunta es una tabla: categoría · total · % · mujeres · hombres. Las condicionales indican su universo.</div>
+          <div id="prev"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+<script>
+const $=id=>document.getElementById(id);
+const pct=(n,t)=>t?Math.round(n*100/t):0;
+const R=['var(--r1)','var(--r2)','var(--r3)','var(--r4)','var(--r5)'];
+function hbars(id,rows,opt={}){
+  const tot=opt.total||rows.reduce((a,r)=>a+r[1],0), max=opt.max||Math.max(1,...rows.map(r=>r[1]));
+  $(id).innerHTML=rows.map(r=>`<div class="hb"><span>${r[0]}</span><span class="t"><i style="width:${r[1]*100/max}%"></i></span><span class="n">${opt.pct?r[1]+'%':r[1]+' · '+pct(r[1],tot)+'%'}</span></div>`).join('');
+}
+function pairs(id,rows,max,suf=''){
+  $(id).innerHTML=rows.map(r=>`<div class="hb pair"><span>${r[0]}</span><span><span class="t" style="display:block"><i style="width:${r[1]*100/max}%"></i></span><span class="t h" style="display:block"><i style="width:${r[2]*100/max}%"></i></span></span><span class="n">${r[1]}${suf} · ${r[2]}${suf}</span></div>`).join('');
+}
+function stack(id,rows,colors,hi){
+  $(id).innerHTML=rows.map(r=>`<div class="stk"><span>${r[0]}</span><span class="s">${r[1].map((v,i)=>`<i style="width:${v}%;background:${colors[i]}"></i>`).join('')}</span><span class="n">${hi.reduce((a,i)=>a+r[1][i],0)}%</span></div>`).join('');
+}
+function donut(id,rows,colors){
+  const tot=rows.reduce((a,r)=>a+r[1],0); let a=0; const segs=rows.map((r,i)=>{const s=a; a+=r[1]/tot*360; return `${colors[i]} ${s}deg ${a}deg`;}).join(',');
+  $(id).innerHTML=`<div class="donut"><div style="width:96px;height:96px;flex:none;border-radius:50%;background:conic-gradient(${segs});-webkit-mask:radial-gradient(circle,transparent 52%,#000 53%);mask:radial-gradient(circle,transparent 52%,#000 53%)"></div><div>${rows.map((r,i)=>`<div style="margin:3px 0"><i style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${colors[i]};margin-right:6px"></i>${r[0]} <b>${r[1]}</b> <span style="color:var(--muted)">${pct(r[1],tot)}%</span></div>`).join('')}</div></div>`;
+}
+// ---- Hitos
+const P=[
+ ['P1 · Gestión empresarial','Empresas sensibilizadas en empleo inclusivo',[['Empresas sensibilizadas',0,50,'Asistieron a un evento de sensibilización'],['Espacios de aprendizaje con empresas',0,3,'Eventos realizados'],['Empresas con diagnóstico de empleo inclusivo',null,50,'Aún no se registra en la plataforma']]],
+ ['P2 · Mapeo y focalización','Población registrada y caracterizada',[['Personas registradas',112,200,''],['Mujeres registradas',62,100,''],['Personas con línea base',85,200,''],['Planes de acción individuales',null,200,'Aún no se registra en la plataforma'],['Espacios de aprendizaje con la población',0,3,'Eventos realizados']]],
+ ['P4 · Mitigación de barreras','Personas atendidas con servicios de mitigación',[['Personas atendidas',0,200,'Con soporte de entrega del servicio'],['Mujeres atendidas',0,100,'']]],
+ ['P5 · Vinculación laboral','Personas vinculadas y con seguimiento',[['Personas vinculadas',0,150,''],['Mujeres vinculadas',0,75,''],['Vinculadas con seguimiento',0,150,'Al menos un soporte de seguimiento']]]];
+$('prods').innerHTML=P.map(p=>`<div class="card prod"><h3>${p[0]}</h3><div class="pq">${p[1]}</div>${p[2].map(m=>{
+  const nf=m[1]==null, v=nf?0:pct(m[1],m[2]); const st=nf?'<span class="st nf">Sin fuente</span>':v>=100?'<span class="st ok">Cumplida</span>':v>0?'<span class="st cur">En curso</span>':'<span class="st ini">Sin iniciar</span>';
+  return `<div class="meta"><span class="nm">${m[0]}${st}${m[3]?`<small>${m[3]}</small>`:''}</span><span class="t"><i style="width:${Math.min(100,v)}%"></i></span><span class="n">${nf?'—':m[1]} / ${m[2]}<small>${nf?'':v+'%'}</small></span></div>`}).join('')}</div>`).join('');
+const F=[['Registro',112],['Orientación',0],['Aceleración',0],['Intermediación',0],['Colocación',0]];
+$('funnel').innerHTML=F.map((f,i)=>`<div class="s" style="background:${R[4-i]};${i>2?'color:#0f172a':''}"><b>${f[1]}</b><span>${f[0]}</span></div>`).join('');
+// ---- Personas
+donut('p_gen',[['Mujer',62],['Hombre',48],['No binario',1],['Prefiere no decir',1]],['var(--muj)','var(--hom)','#14b8a6','#e2e8f0']);
+hbars('p_edad',[['18–24',21],['25–29',24],['30–39',33],['40–49',20],['50–59',11],['60 o más',3]]);
+hbars('p_edu',[['Ninguno',0],['Primaria',1],['Secundaria',2],['Media Bachiller',14],['Técnico',23],['Tecnológico',18],['Profesional',37],['Especialización',15],['Maestría',2],['Doctorado',0]]);
+stack('p_cap',[['Total',[5,13,40,30,12]],['Mujeres',[6,15,41,28,10]],['Hombres',[4,10,39,33,14]]],R,[3,4]);
+$('p_capleg').innerHTML=['1 Muy bajo','2 Bajo','3 Regular','4 Alto','5 Muy alto'].map((l,i)=>`<span><i style="background:${R[i]}"></i>${l}</span>`).join('');
+pairs('p_barr',[['Dependencia de otra persona para costos',52,38],['Falta de recursos propios',47,38],['Transporte a entrevistas',44,35],['Cuidado de dependientes',44,15],['Conciliar trabajo y familia',41,20]],60,'%');
+stack('p_cubre',[['Alimentación',[51,47,2]],['Vivienda',[44,53,3]],['Servicios',[49,48,3]],['Salud',[38,58,4]],['Vestuario',[29,68,3]],['Ahorrar',[12,85,3]]],['var(--accent)','#f87171','#e2e8f0'],[1]);
+hbars('p_ing',[['Sin ingresos',22],['Hasta $500.000',18],['$500.001 – $1.000.000',19],['$1.000.001 – $1.500.000',13],['$1.500.001 – $2.000.000',7],['$2.000.001 – $3.000.000',4],['$3.000.001 – $5.000.000',2],['Más de $5.000.000',0]]);
+// ---- Empresas (reales 15-oct)
+donut('e_tam',[['Micro',28],['Pequeña',12],['Mediana',7],['Grande',1]],['var(--r5)','var(--r4)','var(--r3)','var(--r2)']);
+hbars('e_sec',[['Otras actividades de servicios',17],['Otro',6],['Industrias manufactureras',5],['Comercio y reparación de vehículos',4],['Alojamiento y comida',4],['Artes y recreación',3],['Construcción',3],['Educación',2],['Transporte y almacenamiento',2],['Servicios administrativos',1],['Agricultura y ganadería',1]]);
+hbars('v_edu',[['Bachillerato',4],['Técnico laboral',6],['Técnico profesional',3],['Universitario',1],['Especialización',1]]);
+hbars('v_sal',[['1 SMMLV',6],['Entre 1 y 2 SMMLV',7],['Entre 3 y 4 SMMLV',2]]);
+// ---- Informes: vista previa
+const T=(tit,uni,rows)=>`<div style="margin:10px 0 4px;font-weight:600">${tit}</div><div class="q" style="margin-bottom:4px">${uni}</div><table class="xl"><tr><th>Categoría</th><th>Total</th><th>%</th><th>Mujeres</th><th>Hombres</th></tr>${rows.map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td><td>${r[3]}</td><td>${r[4]}</td></tr>`).join('')}</table>`;
+$('prev').innerHTML=
+ T('4.15 ¿A cuál régimen de salud está afiliado?','Universo: 85 personas con línea base',[['Subsidiado',51,'60%',30,21],['Contributivo',25,'29%',12,13],['Ninguno',6,'7%',4,2],['Régimen especial',1,'1%',0,1],['No sabe / no informa',2,'2%',1,1]])+
+ T('4.16 Razón de no afiliación','Universo: 6 personas que respondieron «Ninguno» en 4.15',[['Por falta de dinero',2,'33%',2,0],['No está vinculado laboralmente',2,'33%',1,1],['Muchos trámites',1,'17%',1,0],['En espera del carné subsidiado',1,'17%',0,1]])+
+ T('3.4 Falta de apoyo para el cuidado de dependientes','Universo: 85 · escala 1–5',[['1 · No ha sido una barrera',29,'34%',12,17],['2 · Baja',12,'14%',6,6],['3 · Moderada',18,'21%',10,8],['4 · Alta',14,'16%',11,3],['5 · Muy alta',12,'14%',11,1]]);
+// ---- página activa
+const t=(location.hash||'#hit').slice(1);
+document.querySelectorAll('.page').forEach(p=>p.classList.toggle('on',p.id===t));
+document.querySelectorAll('.tab').forEach(p=>p.classList.toggle('on',p.dataset.t===t));
+$('dash-head').style.display=t==='inf'?'none':'block';
+$(t==='inf'?'nav-inf':'nav-dash').classList.add('on');
+</script>
+</body>
+</html>

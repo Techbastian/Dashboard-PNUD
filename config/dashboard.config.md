@@ -84,14 +84,17 @@ cifras:
 
 ## Ruta de la persona (P-03, D-37)
 
-Orientación = asistió a una sesión de orientación; Aceleración = matriculada y asistió a una sesión formativa (D-33).
-Se marcan en el Calendario. Intermediación = postulaciones **atribuibles** al proyecto (A-16, P-08): a vacantes de
-empresas vinculadas a la cohorte o creadas para ella, más las externas que registra el equipo.
+Orientación = hizo la **línea base** o asistió a una sesión de orientación del Calendario (P-12, D-44); Aceleración =
+matriculada y asistió a una sesión formativa (D-33). Intermediación = postulaciones **atribuibles** al proyecto (A-16, P-08):
+a vacantes de empresas vinculadas a la cohorte o creadas para ella, más las externas que registra el equipo.
+`uniones` = etapas que se cumplen por al menos una condición; las cuenta la función pública (A-20) y Participantes.
 
 ```yaml
+uniones:
+  orientacion: [formulario:linea-base, asistencia:orientacion]
 embudo:
   - { etapa: Registro,       valor: "formularios[recorrer-pnud].personas" }
-  - { etapa: Orientación,    valor: "formacion.asistencia_por_tipo[orientacion].personas" }
+  - { etapa: Orientación,    valor: uniones.orientacion.personas }
   - { etapa: Aceleración,    valor: "formacion.asistencia_por_tipo[formacion].matriculados" }
   - { etapa: Intermediación, valor: empleabilidad.personas_postuladas_aliadas }
   - { etapa: Colocación,     valor: empleabilidad.colocados }
@@ -131,6 +134,16 @@ distribuciones:
     - { titulo: Salario,                   datos: vacantes.por_salario }
     - { titulo: Tipo de contrato,          datos: vacantes.por_contrato, grafico: dona }
     - { titulo: Modalidad,                 datos: vacantes.por_modalidad, grafico: dona }
+```
+
+## Participantes (P-12, D-44)
+
+Columnas de ✓ que no son etapas de la ruta. También sirven de filtro (con / sin) y salen en el Excel de Listados.
+
+```yaml
+participantes:
+  marcas:
+    - { titulo: Hoja de vida, regla: hv, ayuda: Hoja de vida cargada en la plataforma }
 ```
 
 ## Secciones del Dashboard
@@ -365,6 +378,8 @@ pestanas:
         tipo: barras
         datos: postulaciones.por_nivel_educativo
         orden: [Ninguno, Primaria, Secundaria, Media Bachiller, Técnico, Tecnológico, Profesional, Profesional universitario, Especialización, Maestría, Doctorado]
+      # P-11: municipio de las personas registradas, parte del hito P2 (A-18, sin agrupar)
+      - { titulo: Municipio de las personas registradas, nota: "Registro · municipio de residencia · todos los municipios", tipo: barras, datos: postulaciones.por_municipio_todos }
       - { titulo: ¿Qué tan capaz se siente de conseguir empleo?, nota: "Línea base · % que responde 4 o 5", tipo: apilada, pregunta: capacidad_empleo, porGenero: true, destacar: ["4", "5"] }
       - titulo: Las 5 barreras más altas
         nota: Línea base · % que la califica 4 o 5 · mujeres vs hombres
@@ -374,7 +389,7 @@ pestanas:
         preguntas: [b_cultura, b_vestuario, b_transporte, b_cuidado, b_conciliar, b_discriminacion, b_convalidacion, b_transversales, b_tecnicas, b_certificacion, b_tramites, b_dependencia, b_recursos, b_financiera, b_virtuales]
       - { titulo: ¿Sus ingresos le alcanzan para…?, nota: "Línea base · el número es el % que responde «No»", tipo: apilada, paleta: sino, destacar: ["No"], preguntas: [cubre_alimentacion, cubre_vivienda, cubre_servicios, cubre_salud, cubre_vestuario, ahorrar] }
       - { titulo: Ingresos personales del mes pasado, nota: "Línea base · rangos hasta $5.000.000", tipo: barras, pregunta: ingresos_personales }
-    pie: "El detalle completo (municipio, salud, vivienda, inclusión financiera, expectativas, las 15 barreras…) se descarga en Informes."
+    pie: "El detalle completo (salud, vivienda, inclusión financiera, expectativas, las 15 barreras…) se descarga en Informes."
 
   - id: empresas
     titulo: Empresas
@@ -398,12 +413,13 @@ informe:
   hojas:
     - { nombre: 1 Hitos, contenido: metas, descripcion: "Las 13 metas del contrato: actual, objetivo, % de avance y estado" }
     - nombre: 2 Registro
-      descripcion: Género, edad, nivel educativo y las preguntas de selección del registro
+      descripcion: Género, edad, nivel educativo, municipio y las preguntas de selección del registro
       cifras: [{ label: Personas registradas, valor: "formularios[recorrer-pnud].personas" }, { label: Mujeres registradas, valor: "formularios[recorrer-pnud].mujeres" }]
       listas:
         - { titulo: Género, datos: postulaciones.por_genero, nota: "Campo «Género» del registro" }
         - { titulo: Edad, datos: postulaciones.por_edad_rangos }
         - { titulo: Nivel educativo, datos: postulaciones.por_nivel_educativo }
+        - { titulo: Municipio de residencia, datos: postulaciones.por_municipio_todos }
       preguntas: registro
     - nombre: 3 Línea base
       descripcion: "Todas las preguntas de selección de la línea base (15 barreras, empleabilidad, salud, autonomía, hogar, vivienda, expectativas), montos en rangos"

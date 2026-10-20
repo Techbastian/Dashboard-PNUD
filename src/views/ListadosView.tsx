@@ -1,6 +1,7 @@
 /**
  * Listados (E7, patrón de FQSD `ExportarView`): arma un listado con filtros combinables y lo descarga en Excel.
- * Los filtros salen de la config (etapas de la ruta, D-37) y de los datos (estado de la postulación).
+ * Los filtros salen de la config (etapas de la ruta, D-37; marcas de Participantes, D-44) y de los datos
+ * (estado de la postulación, fecha de registro).
  */
 import { useMemo, useState } from 'react';
 import { Download, Loader2, Users, Building2 } from 'lucide-react';
@@ -19,7 +20,11 @@ export default function ListadosView() {
   const { datos, error } = useCohorte();
   const [tipo, setTipo] = useState<'personas' | 'empresas'>('personas');
   const etapas = etapasConRegla();
+  const marcas = config.participantes.marcas;
   const [conds, setConds] = useState<Cond[]>(() => etapas.map(() => 'cualquiera'));
+  const [condsM, setCondsM] = useState<Cond[]>(() => marcas.map(() => 'cualquiera'));
+  const [desde, setDesde] = useState('');
+  const [hasta, setHasta] = useState('');
   const [estados, setEstados] = useState<string[]>([]);
   const [bajando, setBajando] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -29,7 +34,9 @@ export default function ListadosView() {
   if (!datos) return <Cargando />;
 
   const todosEstados = [...new Set(datos.personas.map(p => p.estado ?? 'sin_estado'))];
-  const elegidas = filas.filter(f => conds.every((c, i) => c === 'cualquiera' || (c === 'si' ? f.r[i] === true : f.r[i] === false))
+  const cumple = (c: Cond, v: boolean | null) => c === 'cualquiera' || (c === 'si' ? v === true : v === false);
+  const elegidas = filas.filter(f => conds.every((c, i) => cumple(c, f.r[i])) && condsM.every((c, i) => cumple(c, f.m[i]))
+    && (!desde || (f.dia != null && f.dia >= desde)) && (!hasta || (f.dia != null && f.dia <= hasta))
     && (estados.length === 0 || estados.includes(f.p.estado ?? 'sin_estado')));
   const hoy = new Date().toISOString().slice(0, 10);
   const base = slug(config.identidad.nombre);
@@ -45,6 +52,8 @@ export default function ListadosView() {
             { titulo: 'Género', valor: f => f.p.genero }, { titulo: 'Estado postulación', valor: f => humano(f.p.estado) }, { titulo: 'Registro', valor: f => fecha(f.p.registradaEl) },
             ...etapas.map((e, i) => ({ titulo: e.etapa, valor: (f: typeof elegidas[number]) => (f.r[i] === null ? 'Sin fuente' : f.r[i] ? 'Sí' : 'No') })),
             { titulo: 'Etapa actual', valor: f => (f.actual == null ? '' : etapas[f.actual].etapa) },
+            ...marcas.map((m, i) => ({ titulo: m.titulo, valor: (f: typeof elegidas[number]) => (f.m[i] === null ? 'Sin fuente' : f.m[i] ? 'Sí' : 'No') })),
+            { titulo: 'Hoja de vida (enlace)', valor: f => f.p.hv },
           ],
         })]);
       } else {
@@ -92,6 +101,24 @@ export default function ListadosView() {
                     opciones={[{ key: 'cualquiera', label: 'Todas' }, { key: 'si', label: 'Sí' }, { key: 'no', label: 'No' }]} />
                 </div>
               ))}
+              {marcas.map((m, i) => (
+                <div key={m.titulo} className="flex items-center justify-between gap-3 bg-slate-50 rounded-xl px-4 py-2.5">
+                  <span className="text-xs font-bold text-slate-700">{m.titulo}</span>
+                  <Pestanas activa={condsM[i]} onCambio={v => setCondsM(c => c.map((x, j) => (j === i ? v : x)))}
+                    opciones={[{ key: 'cualquiera', label: 'Todas' }, { key: 'si', label: 'Sí' }, { key: 'no', label: 'No' }]} />
+                </div>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Fecha de registro</p>
+            <div className="flex flex-wrap items-center gap-3 text-[11px] font-bold text-slate-500">
+              <label className="flex items-center gap-2">Desde
+                <input type="date" value={desde} max={hasta || undefined} onChange={e => setDesde(e.target.value)} className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-600" />
+              </label>
+              <label className="flex items-center gap-2">Hasta
+                <input type="date" value={hasta} min={desde || undefined} onChange={e => setHasta(e.target.value)} className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-600" />
+              </label>
             </div>
           </div>
           <div>

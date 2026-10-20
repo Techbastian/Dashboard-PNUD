@@ -12,7 +12,11 @@
  *   postulado                      se postuló a alguna vacante (plataforma o externa)
  *   postulado_proyecto             se postuló a una vacante de una empresa del proyecto, o externa (A-16)
  *   colocado                       tiene una colocación activa
+ *   hv                             tiene hoja de vida cargada en la plataforma (candidates.cv_url) — para marcas (D-44)
  *   pendiente                      sin fuente aún (no es "no")
+ *
+ * `a|b|c` = cumple AL MENOS UNA (D-44). Una etapa con `valor: uniones.<id>` toma su regla de `config.uniones[id]`,
+ * y la función pública cuenta esas mismas condiciones (A-20).
  */
 import { config, type Etapa } from './config';
 import type { DatosCohorte, Persona } from './datos';
@@ -24,6 +28,7 @@ export function reglaDe(e: Etapa): string {
   const v = e.valor.trim();
   let m: RegExpMatchArray | null;
   if (v === 'pendiente') return 'pendiente';
+  if ((m = v.match(/^uniones\.([^.]+)/))) return config.uniones[m[1]]?.join('|') || 'pendiente';
   if ((m = v.match(/^formularios\[([^\]]+)\]/))) return `formulario:${m[1]}`;
   if ((m = v.match(/^formacion\.asistencia_por_tipo\[([^\]]+)\]\.matriculados$/))) return `asistencia_matriculado:${m[1]}`;
   if ((m = v.match(/^formacion\.asistencia_por_tipo\[([^\]]+)\]/))) return `asistencia:${m[1]}`;
@@ -66,6 +71,10 @@ export function indexar(d: DatosCohorte): Indice {
 function tieneValor(v: unknown) { return v != null && String(v).trim() !== ''; }
 
 export function evaluar(regla: string, p: Persona, d: DatosCohorte, ix: Indice): Resultado {
+  if (regla.includes('|')) {
+    const rs = regla.split('|').map(r => evaluar(r.trim(), p, d, ix));
+    return rs.some(r => r === true) ? true : rs.every(r => r === null) ? null : false;
+  }
   const [tipo, arg] = regla.split(':');
   switch (tipo) {
     case 'pendiente': return null;
@@ -89,6 +98,7 @@ export function evaluar(regla: string, p: Persona, d: DatosCohorte, ix: Indice):
     case 'postulado': return ix.postulado.has(p.id);
     case 'postulado_proyecto': return ix.postuladoProyecto.has(p.id);
     case 'colocado': return ix.colocado.has(p.id);
+    case 'hv': return tieneValor(p.hv);
     default: return null;
   }
 }

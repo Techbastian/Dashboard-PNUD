@@ -6,7 +6,7 @@ import type { Pregunta } from './config';
 
 export type PublicStats = Record<string, unknown> & { generated_at?: string; version?: number };
 
-/** Opciones de la función v7 (A-17). `hasta` y `filtro` solo tienen efecto con sesión del equipo (is_admin). */
+/** Opciones de la función v7 (A-17); `uniones` (v9, A-20) sale siempre de la config. `hasta` y `filtro` solo tienen efecto con sesión del equipo (is_admin). */
 export interface OpcionesStats {
   preguntas?: Pregunta[];
   hasta?: string;
@@ -19,7 +19,7 @@ export async function consultarStats(op: OpcionesStats = {}): Promise<PublicStat
   const { data, error } = await supabase.rpc('dashboard_public_stats', {
     p_cohort_id: config.identidad.cohortId,
     p_grupos: config.grupos,
-    p_opciones: { preguntas: (op.preguntas ?? []).map(paraFuncion), hasta: op.hasta, filtro: op.filtro },
+    p_opciones: { preguntas: (op.preguntas ?? []).map(paraFuncion), uniones: config.uniones, hasta: op.hasta, filtro: op.filtro },
   });
   if (error) throw new Error(error.message);
   if (data == null) throw new Error('La cohorte no existe o está en borrador.');

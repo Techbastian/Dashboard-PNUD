@@ -2,32 +2,44 @@
  * Participantes (E4, patrón de FQSD): "¿en qué va cada persona?". Una columna por etapa de la ruta de la
  * config (D-37) — mismas reglas que el embudo del Dashboard — y una ficha lateral con el porqué:
  * datos, formularios, documentos, asistencia, postulaciones y colocación. Privada (PII).
+ * D-44: columnas de `participantes.marcas` (p. ej. hoja de vida) y filtros por fase («llegó a» / «está en»),
+ * por fecha de registro y por marca.
  */
 import { useMemo, useState } from 'react';
 import { ExternalLink, FileCheck2, FileX2 } from 'lucide-react';
 import { useCohorte, type Persona, type DatosCohorte } from '../lib/datos';
 import { etapasConRegla, evaluar, indexar, etapaActual, type Resultado } from '../lib/etapas';
-import { fecha, diaLargo, hora, humano, norm, num } from '../lib/formato';
+import { fecha, diaBogota, diaLargo, hora, humano, norm, num } from '../lib/formato';
 import { config } from '../lib/config';
 import { BarraDatos, Buscador, Cargando, ErrorDatos, PanelLateral, BloqueFicha, MarcaEtapa, Etiqueta, Pestanas, Vacio } from '../ui/Privado';
 import { KPICard } from '../ui/Comunes';
 
-type Fila = { p: Persona; r: Resultado[]; actual: number | null };
+/** `r` = etapas de la ruta; `m` = marcas de la config (D-44); `dia` = día de registro en Bogotá (YYYY-MM-DD). */
+type Fila = { p: Persona; r: Resultado[]; actual: number | null; m: Resultado[]; dia: string | null };
+type Cond = 'todas' | 'si' | 'no';
 
 export function filasPersonas(d: DatosCohorte): Fila[] {
   const etapas = etapasConRegla();
   const ix = indexar(d);
   return d.personas.map(p => {
     const r = etapas.map(e => evaluar(e.regla, p, d, ix));
-    return { p, r, actual: etapaActual(r) };
+    const m = config.participantes.marcas.map(x => evaluar(x.regla, p, d, ix));
+    return { p, r, actual: etapaActual(r), m, dia: p.registradaEl ? diaBogota(p.registradaEl) : null };
   });
 }
 
+const CAMPO = 'bg-white border border-slate-100 rounded-2xl px-4 py-2.5 text-xs font-bold text-slate-600';
+
 export default function ParticipantesView() {
   const { datos, error, cargando } = useCohorte();
+  const marcas = config.participantes.marcas;
   const [q, setQ] = useState('');
   const [etapa, setEtapa] = useState<string>('todas');
+  const [modo, setModo] = useState<'llego' | 'esta'>('llego');
   const [estado, setEstado] = useState('todos');
+  const [desde, setDesde] = useState('');
+  const [hasta, setHasta] = useState('');
+  const [conds, setConds] = useState<Cond[]>(() => marcas.map(() => 'todas'));
   const [abierta, setAbierta] = useState<string | null>(null);
   const etapas = etapasConRegla();
   const filas = useMemo(() => (datos ? filasPersonas(datos) : []), [datos]);
@@ -36,10 +48,16 @@ export default function ParticipantesView() {
   if (!datos) return <Cargando />;
 
   const estados = [...new Set(datos.personas.map(p => p.estado ?? 'sin_estado'))];
-  const visibles = filas.filter(f =>
-    (etapa === 'todas' || f.r[Number(etapa)] === true) &&
+  // Todos los filtros menos la fase: de aquí salen las cifras y los conteos de cada pestaña.
+  const base = filas.filter(f =>
     (estado === 'todos' || (f.p.estado ?? 'sin_estado') === estado) &&
+    (!desde || (f.dia != null && f.dia >= desde)) && (!hasta || (f.dia != null && f.dia <= hasta)) &&
+    conds.every((c, i) => c === 'todas' || (c === 'si' ? f.m[i] === true : f.m[i] === false)) &&
     (!q.trim() || [f.p.nombre, f.p.documento, f.p.correo, f.p.celular].some(v => norm(v).includes(norm(q)))));
+  const enFase = (f: Fila, i: number) => (modo === 'llego' ? f.r[i] === true : f.actual === i);
+  const visibles = etapa === 'todas' ? base : base.filter(f => enFase(f, Number(etapa)));
+  const filtrando = Boolean(q.trim() || estado !== 'todos' || desde || hasta || conds.some(c => c !== 'todas'));
+  const limpiar = () => { setQ(''); setEstado('todos'); setDesde(''); setHasta(''); setConds(marcas.map(() => 'todas')); };
   const fila = filas.find(f => f.p.id === abierta) ?? null;
 
   return (
@@ -47,23 +65,49 @@ export default function ParticipantesView() {
       <BarraDatos />
 
       <div className={`grid grid-cols-2 md:grid-cols-3 ${etapas.length >= 5 ? 'xl:grid-cols-6' : 'xl:grid-cols-5'} gap-4`}>
-        <KPICard label="Personas" value={num(filas.length)} color="text-slate-800" />
+        <KPICard label="Personas" value={num(base.length)} color="text-slate-800" />
         {etapas.map((e, i) => {
           const sinFuente = filas.length > 0 && filas.every(f => f.r[i] === null);
-          return <KPICard key={e.etapa} label={e.etapa} value={sinFuente ? null : num(filas.filter(f => f.r[i] === true).length)} color="text-brand" />;
+          return <KPICard key={e.etapa} label={e.etapa} value={sinFuente ? null : num(base.filter(f => f.r[i] === true).length)} color="text-brand" />;
         })}
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
         <Buscador valor={q} onCambio={setQ} placeholder="Buscar por nombre, documento, correo o celular…" />
-        <select value={estado} onChange={e => setEstado(e.target.value)} aria-label="Estado de la postulación"
-          className="bg-white border border-slate-100 rounded-2xl px-4 py-2.5 text-xs font-bold text-slate-600">
+        <select value={estado} onChange={e => setEstado(e.target.value)} aria-label="Estado de la postulación" className={CAMPO}>
           <option value="todos">Todos los estados</option>
           {estados.map(s => <option key={s} value={s}>{humano(s)}</option>)}
         </select>
+        {marcas.map((m, i) => (
+          <select key={m.titulo} value={conds[i]} aria-label={m.titulo} className={CAMPO}
+            onChange={e => setConds(cs => cs.map((c, j) => (j === i ? e.target.value as Cond : c)))}>
+            <option value="todas">{m.titulo}: todas</option>
+            <option value="si">Con {m.titulo.toLowerCase()}</option>
+            <option value="no">Sin {m.titulo.toLowerCase()}</option>
+          </select>
+        ))}
+        <label className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+          Registro desde
+          <input type="date" value={desde} max={hasta || undefined} onChange={e => setDesde(e.target.value)} className={CAMPO} />
+        </label>
+        <label className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+          hasta
+          <input type="date" value={hasta} min={desde || undefined} onChange={e => setHasta(e.target.value)} className={CAMPO} />
+        </label>
+        {filtrando && (
+          <button type="button" onClick={limpiar} className="text-[10px] font-black uppercase tracking-widest text-brand hover:opacity-80">Limpiar filtros</button>
+        )}
       </div>
-      <Pestanas activa={etapa} onCambio={setEtapa}
-        opciones={[{ key: 'todas', label: 'Todas', n: filas.length }, ...etapas.map((e, i) => ({ key: String(i), label: e.etapa, n: filas.filter(f => f.r[i] === true).length }))]} />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Pestanas activa={etapa} onCambio={setEtapa}
+          opciones={[{ key: 'todas', label: 'Todas', n: base.length }, ...etapas.map((e, i) => ({ key: String(i), label: e.etapa, n: base.filter(f => enFase(f, i)).length }))]} />
+        <Pestanas<'llego' | 'esta'> activa={modo} onCambio={setModo}
+          opciones={[{ key: 'llego', label: 'Llegó a la fase' }, { key: 'esta', label: 'Está en la fase' }]} />
+      </div>
+      <p className="text-[11px] font-bold text-slate-400 -mt-3">
+        {modo === 'llego' ? 'Llegó a la fase: tiene ✓ en ella, aunque ya haya avanzado más.' : 'Está en la fase: es la etapa más avanzada que tiene.'}
+        {' '}{num(visibles.length)} de {num(filas.length)} personas.
+      </p>
 
       <div className="glass-card overflow-hidden">
         <div className="overflow-x-auto">
@@ -72,6 +116,7 @@ export default function ParticipantesView() {
               <tr>
                 <th className="px-6 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest sticky left-0 bg-gray-50">Persona</th>
                 <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Estado</th>
+                {marcas.map(m => <th key={m.titulo} title={m.ayuda} className="px-3 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">{m.titulo}</th>)}
                 {etapas.map(e => <th key={e.etapa} className="px-3 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">{e.etapa}</th>)}
               </tr>
             </thead>
@@ -80,9 +125,10 @@ export default function ParticipantesView() {
                 <tr key={f.p.id} onClick={() => setAbierta(f.p.id)} className="hover:bg-gray-50/60 cursor-pointer">
                   <td className="px-6 py-3 sticky left-0 bg-white">
                     <p className="text-sm font-bold text-slate-800">{f.p.nombre}</p>
-                    <p className="text-[11px] text-slate-400">{f.p.documento ?? '—'} · {f.p.correo ?? 'sin correo'}</p>
+                    <p className="text-[11px] text-slate-400">{f.p.documento ?? '—'} · {f.p.correo ?? 'sin correo'} · registro {fecha(f.dia)}</p>
                   </td>
                   <td className="px-4 py-3"><Etiqueta>{humano(f.p.estado)}</Etiqueta></td>
+                  {f.m.map((v, i) => <td key={`m${i}`} className="px-3 py-3 text-center"><MarcaEtapa v={v} /></td>)}
                   {f.r.map((v, i) => <td key={i} className="px-3 py-3 text-center"><MarcaEtapa v={v} /></td>)}
                 </tr>
               ))}
@@ -123,6 +169,16 @@ function Ficha({ f, datos, onCerrar }: { f: Fila; datos: DatosCohorte; onCerrar:
             </li>
           ))}
         </ol>
+        {config.participantes.marcas.length > 0 && (
+          <ul className="mt-3 pt-3 border-t border-slate-100 space-y-2">
+            {config.participantes.marcas.map((m, i) => (
+              <li key={m.titulo} className="flex items-center gap-3">
+                <MarcaEtapa v={f.m[i]} />
+                <span className={`text-sm font-bold ${f.m[i] ? 'text-slate-800' : 'text-slate-400'}`}>{m.titulo}</span>
+              </li>
+            ))}
+          </ul>
+        )}
       </BloqueFicha>
 
       <BloqueFicha titulo="Datos de contacto">
@@ -130,6 +186,11 @@ function Ficha({ f, datos, onCerrar }: { f: Fila; datos: DatosCohorte; onCerrar:
           {dato('Correo', p.correo)}{dato('Celular', p.celular)}{dato('Ciudad', p.ciudad)}{dato('Género', p.genero)}
           {dato('Nacimiento', fecha(p.nacimiento))}{dato('Estado', humano(p.estado))}
           {dato('Matrícula', p.matricula ? `${humano(p.matricula.estado)} · ${fecha(p.matricula.fecha)}` : 'No matriculada')}
+          <div><dt className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Hoja de vida</dt><dd className="text-sm font-bold text-slate-700">
+            {p.hv ? (/^https?:\/\//.test(p.hv)
+              ? <a href={p.hv} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-brand">Abrir <ExternalLink size={13} /></a>
+              : 'Cargada') : 'No cargada'}
+          </dd></div>
         </dl>
       </BloqueFicha>
 

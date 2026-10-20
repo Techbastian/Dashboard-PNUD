@@ -21,6 +21,8 @@ export interface Persona {
   ciudad: string | null;
   genero: string | null;
   nacimiento: string | null;
+  /** Hoja de vida cargada en la plataforma (candidates.cv_url). */
+  hv: string | null;
   postulacionId: string;
   estado: string | null;
   registradaEl: string | null;
@@ -147,7 +149,7 @@ async function cargarTodo(): Promise<DatosCohorte> {
   const apps = await todas('project_applications', 'id, candidate_id, status, created_at, custom_answers', q => q.eq('cohort_id', COHORTE));
   const idsPersonas = apps.map(a => String(a.candidate_id ?? '')).filter(Boolean);
   const [cands, matriculas, eventos, colocRaw, postPlat, postExt, enlaces, vacRaw, socio] = await Promise.all([
-    porIds('candidates', 'id, first_name, last_name, document_type, document_number, email, phone, city, gender, birth_date', 'id', idsPersonas),
+    porIds('candidates', 'id, first_name, last_name, document_type, document_number, email, phone, city, gender, birth_date, cv_url', 'id', idsPersonas),
     todas('program_enrollments', 'id, candidate_id, status, enrolled_at', q => q.eq('cohort_id', COHORTE)),
     todas('events', 'id, nombre, tipo, fase, modalidad, ubicacion, fecha_hora_inicio, fecha_hora_fin, descripcion, toma_asistencia, external_source, meeting_link', q => q.eq('cohort_id', COHORTE).order('fecha_hora_inicio')),
     porIds('placements', 'id, talent_id, company_id, job_id, start_date, role_sector, modality, status, deactivated_at, duration_months', 'talent_id', idsPersonas),
@@ -185,7 +187,7 @@ async function cargarTodo(): Promise<DatosCohorte> {
       id: String(a.candidate_id),
       nombre: [c.first_name, c.last_name].filter(Boolean).join(' ').trim() || 'Sin nombre',
       tipoDoc: s(c.document_type), documento: s(c.document_number), correo: s(c.email), celular: s(c.phone),
-      ciudad: s(c.city), genero: generoLegible(generoPorId.get(String(a.candidate_id)) ?? s(c.gender)), nacimiento: s(c.birth_date),
+      ciudad: s(c.city), genero: generoLegible(generoPorId.get(String(a.candidate_id)) ?? s(c.gender)), nacimiento: s(c.birth_date), hv: s(c.cv_url),
       postulacionId: String(a.id), estado: s(a.status), registradaEl: s(a.created_at),
       respuestas: (a.custom_answers ?? {}) as Persona['respuestas'],
       matricula: m ? { id: Number(m.id), estado: s(m.status), fecha: s(m.enrolled_at) } : null,

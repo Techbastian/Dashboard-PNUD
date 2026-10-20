@@ -11,6 +11,8 @@ export interface Meta { fase?: number; meta: string; actual: string; ayuda?: str
 /** Etapa de la ruta de la persona (D-37). `valor` = ruta del agregado público; `regla` = cómo se evalúa por persona
  *  en las vistas privadas (si falta, se deduce de `valor`; ver src/lib/etapas.ts). */
 export interface Etapa { etapa: string; valor: string; regla?: string }
+/** Marca de Participantes (D-44): columna ✓ que no es etapa de la ruta, p. ej. `hv` = hoja de vida cargada. */
+export interface Marca { titulo: string; regla: string; ayuda?: string }
 /** Tipo de evento que se puede crear en el Calendario (D-33). `etapa` = a qué etapa de la ruta suma asistir. */
 export interface TipoEvento {
   tipo: string; label: string; descripcion?: string; modalidad?: 'Presencial' | 'Virtual' | 'Híbrida'; color?: string;
@@ -75,10 +77,13 @@ export interface DashboardConfig {
   };
   /** Documentos: [claves] = debe tener TODAS; { alguno: [claves] } = AL MENOS UNA (A-11). */
   grupos: Record<string, string[] | { alguno: string[] }>;
+  /** D-44: etapa que se cumple por AL MENOS UNA condición → `uniones.<id>` en la función pública (A-20). */
+  uniones: Record<string, string[]>;
   cifras: Cifra[];
   metas: Meta[];
   fases: Record<string, string>;
   embudo: Etapa[];
+  participantes: { marcas: Marca[] };
   catalogo: TipoEvento[];
   distribuciones: Record<string, Distribucion[]>;
   secciones: string[];
@@ -105,15 +110,53 @@ export function parseConfigMd(md: string): DashboardConfig {
   return {
     identidad: c.identidad,
     grupos: c.grupos ?? {},
+    uniones: validarUniones(c.uniones, c.embudo),
     cifras: c.cifras ?? [],
     metas: c.metas ?? [],
     fases: Object.fromEntries(Object.entries(c.fases ?? {}).map(([k, v]) => [String(k), String(v)])),
     embudo: c.embudo ?? [],
+    participantes: validarParticipantes(c.participantes),
     catalogo: validarCatalogo(c.catalogo),
     distribuciones: c.distribuciones ?? {},
     secciones: c.secciones ?? ['metas', 'cifras', 'embudo', 'personas'],
     modulos: validarModulos(c.modulos),
     ...validarPestanas(c.pestanas, c.preguntas, c.foco, c.informe),
+  };
+}
+
+/** Condiciones que entiende la función pública en `uniones` (A-20) — mismas que las reglas por persona. */
+const CONDICION = /^(formulario:[^|:\s]+|asistencia(:[A-Za-z0-9_-]+)?|matriculado)$/;
+/** Reglas que sirven como marca de Participantes (por persona; src/lib/etapas.ts). */
+const REGLA_MARCA = /^(hv|registro|matriculado|postulado|postulado_proyecto|colocado|formulario:[^|:\s]+|asistencia(_matriculado)?(:[A-Za-z0-9_-]+)?|documentos:[A-Za-z0-9_-]+)(\|.+)?$/;
+
+function validarUniones(u: unknown, embudo: Etapa[] | undefined): Record<string, string[]> {
+  const err = (m: string): never => { throw new Error(`dashboard.config.md: ${m}`); };
+  if (u != null && (typeof u !== 'object' || Array.isArray(u))) err('uniones debe ser un mapa { id: [condiciones] }');
+  const out: Record<string, string[]> = {};
+  for (const [id, v] of Object.entries((u ?? {}) as Record<string, unknown>)) {
+    if (!/^[A-Za-z0-9_-]{1,40}$/.test(id)) err(`uniones.${id}: el id solo admite letras, números, _ y -`);
+    if (!Array.isArray(v) || v.length === 0 || v.length > 10) err(`uniones.${id} debe ser una lista de 1 a 10 condiciones`);
+    out[id] = (v as unknown[]).map(x => String(x).trim());
+    out[id].forEach(x => { if (!CONDICION.test(x)) err(`uniones.${id}: «${x}» no es una condición válida (formulario:<slug>, asistencia[:<tipo>], matriculado)`); });
+  }
+  if (Object.keys(out).length > 20) err('uniones: máximo 20 (límite de la función pública)');
+  (embudo ?? []).forEach((e, i) => {
+    const m = e?.valor?.match(/^uniones\.([^.]+)/);
+    if (m && !out[m[1]]) err(`embudo[${i}] usa uniones.${m[1]}, pero no está en el bloque uniones`);
+  });
+  return out;
+}
+
+function validarParticipantes(p: unknown): { marcas: Marca[] } {
+  const err = (m: string): never => { throw new Error(`dashboard.config.md: ${m}`); };
+  const marcas = ((p as { marcas?: unknown } | undefined)?.marcas ?? []) as Partial<Marca>[];
+  if (!Array.isArray(marcas)) err('participantes.marcas debe ser una lista');
+  return {
+    marcas: marcas.map((m, i) => {
+      if (!m?.titulo || !m.regla) err(`participantes.marcas[${i}] necesita titulo y regla`);
+      if (!REGLA_MARCA.test(m.regla!.trim())) err(`participantes.marcas[${i}]: regla «${m.regla}» no existe`);
+      return { titulo: m.titulo!, regla: m.regla!.trim(), ayuda: m.ayuda };
+    }),
   };
 }
 

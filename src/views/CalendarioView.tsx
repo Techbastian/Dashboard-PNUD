@@ -208,6 +208,7 @@ function PanelEvento({ evento, onCerrar, onEditar }: { evento: Evento; onCerrar:
   const candidatos: Persona[] = busca.trim().length < 2 ? [] : datos.personas
     .filter(p => !enEvento.has(p.id) && [p.nombre, p.documento, p.correo].some(v => norm(v).includes(norm(busca)))).slice(0, 8);
   const n = (e: string) => filas.filter(f => f.estado === e).length;
+  const impacto = { empresas: datos.asistenciaEmpresas.filter(a => a.eventoId === evento.id).length, evidencias: datos.evidencias.filter(x => x.eventoId === evento.id).length };
 
   async function hacer(clave: string, f: () => Promise<string | null>) {
     setOcupado(clave); setError(null);
@@ -308,9 +309,12 @@ function PanelEvento({ evento, onCerrar, onEditar }: { evento: Evento; onCerrar:
 
       <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100">
         <button type="button" onClick={onEditar} className="text-[11px] font-black uppercase tracking-widest text-brand">Editar evento</button>
-        {confirmaBorrar ? (
-          <span className="flex items-center gap-2 text-[11px] font-bold text-red-600">
-            ¿Eliminar el evento y sus {filas.length} registros de asistencia?
+        {/cal\.com/i.test(evento.origen ?? '') ? (
+          <span className="text-[11px] font-bold text-slate-400">Reserva de Cal.com: se cancela allá</span>
+        ) : confirmaBorrar ? (
+          <span className="flex flex-wrap items-center gap-2 text-[11px] font-bold text-red-600">
+            ¿Eliminar el evento? Se borran {filas.length} registros de asistencia ({n('asistio')} asistió)
+            {impacto.empresas > 0 && <>, {impacto.empresas} empresas</>}{impacto.evidencias > 0 && <> y {impacto.evidencias} evidencias</>}. No se puede deshacer.
             <button type="button" disabled={!!ocupado} onClick={() => hacer('borrar', () => borrarEvento(evento.id)).then(onCerrar)} className="px-2.5 py-1 rounded-lg bg-red-600 text-white text-[10px] font-black uppercase">Eliminar</button>
             <button type="button" onClick={() => setConfirmaBorrar(false)} className="text-slate-400 text-[10px] font-black uppercase">No</button>
           </span>

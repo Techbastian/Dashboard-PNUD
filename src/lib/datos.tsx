@@ -39,8 +39,15 @@ export interface Postulacion {
   id: string; personaId: string; origen: 'plataforma' | 'externa'; vacante: string; empresa: string | null; estado: string | null; fecha: string | null; url: string | null; observaciones: string | null;
   /** A-16: a una vacante de una empresa del proyecto (o creada para la cohorte), o externa registrada por el equipo. */
   atribuible: boolean;
+  /** A-22: la persona no cuenta como intermediada (motivo) aunque se haya postulado. */
+  excluida: string | null;
 }
-export interface Colocacion { id: string; personaId: string; empresa: string | null; cargo: string; inicio: string; modalidad: string | null; estado: string | null; activa: boolean; duracionMeses: number | null }
+export interface Colocacion {
+  id: string; personaId: string; empresa: string | null; cargo: string; inicio: string; modalidad: string | null; estado: string | null; activa: boolean;
+  duracionMeses: number | null;
+  /** A-22: esta colocación no cuenta en las métricas de la cohorte (la persona sigue en todo lo demás). */
+  excluida: string | null;
+}
 export interface Vacante {
   id: string; empresaId: string | null; titulo: string; puestos: number; salario: string | null; modalidad: string | null; contrato: string | null;
   nivel: string | null; experiencia: string | null; estado: string | null; publicada: boolean; visibilidad: string | null; ciudades: string[];
@@ -55,6 +62,32 @@ export type TipoEvidencia = 'agenda' | 'asistencia' | 'fotografia' | 'otro';
 /** Evidencia de un evento (A-10): archivo en el bucket privado `evidencias-eventos` o enlace. */
 export interface Evidencia { id: string; eventoId: string; tipo: TipoEvidencia; nombre: string | null; ruta: string | null; url: string | null; subidoPor: string | null; fecha: string }
 export interface Pregunta { clave: string; etiqueta: string; tipo: string }
+/** Tarea o pendiente por persona (follow_up_tasks, A-21). Mismos estados que FQSD. */
+export type EstadoTarea = 'abierta' | 'en_progreso' | 'hecha' | 'cancelada';
+export type PrioridadTarea = 'baja' | 'media' | 'alta';
+export interface Tarea {
+  id: string; personaId: string; titulo: string; descripcion: string | null; estado: EstadoTarea; prioridad: PrioridadTarea;
+  venceEl: string | null; creadaPor: string | null; creadaEl: string; resueltaEl: string | null;
+}
+/** Conclusión o valoración global por persona (participant_conclusions, una por persona y cohorte). */
+export interface Conclusion { personaId: string; texto: string; actualizadaPor: string | null; actualizadaEl: string }
+/** Exclusión de las métricas de la cohorte (dashboard_exclusiones, A-22). La lee también la función pública (v10). */
+export interface Exclusion { tipo: 'persona' | 'colocacion' | 'intermediacion'; refId: string; motivo: string }
+/** Empleador para registrar una colocación: empresa de la plataforma o empleador externo (hiring_employers). */
+export interface Empleador { key: string; nombre: string; origen: 'empresa' | 'externo' }
+/** Valores que exigen los CHECK de placements (iguales a los de FQSD). */
+export const MODALIDADES = ['Presencial', 'Híbrido', 'Remoto'] as const;
+export const DURACIONES = [3, 6] as const;
+export const EXPERIENCIA = ['Sin experiencia', 'Con experiencia', 'Reingreso al empleo'] as const;
+export interface NuevaColocacion {
+  personaId: string;
+  /** `company:<id>` | `hiring:<id>` | `nuevo:<nombre>` (crea el empleador externo). */
+  empleador: string;
+  inicio: string; cargo: string; modalidad: typeof MODALIDADES[number]; duracionMeses: typeof DURACIONES[number];
+  experiencia: typeof EXPERIENCIA[number] | null;
+  /** `auto` = la plataforma envía los recordatorios de retención; `manual` = el equipo. */
+  modoRetencion: 'auto' | 'manual';
+}
 export interface Formulario { bloque: string; slug: string; nombre: string; preguntas: Pregunta[] }
 
 export interface DatosCohorte {
@@ -67,6 +100,10 @@ export interface DatosCohorte {
   colocaciones: Colocacion[];
   empresas: Empresa[];
   formularios: Formulario[];
+  tareas: Tarea[];
+  conclusiones: Conclusion[];
+  /** Exclusiones vigentes de la cohorte (A-22). Las personas excluidas ya no vienen en `personas`. */
+  exclusiones: Exclusion[];
   cargadoEl: string;
 }
 
@@ -87,6 +124,16 @@ interface Valor {
   borrarEvidencia: (e: Evidencia) => Promise<string | null>;
   /** URL para abrir una evidencia (firmada por 10 minutos si es archivo). */
   abrirEvidencia: (e: Evidencia) => Promise<string | null>;
+  crearTarea: (t: { personaId: string; titulo: string; descripcion?: string | null; prioridad: PrioridadTarea; venceEl?: string | null }) => Promise<string | null>;
+  cambiarEstadoTarea: (id: string, estado: EstadoTarea) => Promise<string | null>;
+  guardarConclusion: (personaId: string, texto: string) => Promise<string | null>;
+  crearPostulacionExterna: (x: { personaId: string; vacante: string; empresa?: string | null; url?: string | null; observaciones?: string | null }) => Promise<string | null>;
+  borrarPostulacionExterna: (id: string) => Promise<string | null>;
+  /** Empresas de la plataforma + empleadores externos, para elegir el de una colocación (se pide al abrir el formulario). */
+  listarEmpleadores: () => Promise<Empleador[]>;
+  crearColocacion: (c: NuevaColocacion) => Promise<string | null>;
+  /** No se borra: «colocado» es un hecho; se marca terminada con motivo (la retención lee deactivated_at). */
+  desactivarColocacion: (id: string, motivo: string) => Promise<string | null>;
 }
 
 const Ctx = createContext<Valor | null>(null);
@@ -146,19 +193,28 @@ async function cargarTodo(): Promise<DatosCohorte> {
     }))),
   }));
 
-  const apps = await todas('project_applications', 'id, candidate_id, status, created_at, custom_answers', q => q.eq('cohort_id', COHORTE));
+  // A-22: exclusiones de la cohorte. Las personas excluidas no entran a ninguna vista (igual que en la función pública v10).
+  const exclRaw = await todas('dashboard_exclusiones', 'tipo, ref_id, motivo', q => q.eq('cohort_id', COHORTE));
+  const exclusiones: Exclusion[] = exclRaw.map(x => ({ tipo: String(x.tipo) as Exclusion['tipo'], refId: String(x.ref_id), motivo: String(x.motivo) }));
+  const excl = (tipo: Exclusion['tipo']) => new Map(exclusiones.filter(x => x.tipo === tipo).map(x => [x.refId, x.motivo]));
+  const personasFuera = excl('persona'), colocFuera = excl('colocacion'), intermFuera = excl('intermediacion');
+
+  const apps = (await todas('project_applications', 'id, candidate_id, status, created_at, custom_answers', q => q.eq('cohort_id', COHORTE)))
+    .filter(a => !personasFuera.has(String(a.candidate_id ?? '')));
   const idsPersonas = apps.map(a => String(a.candidate_id ?? '')).filter(Boolean);
-  const [cands, matriculas, eventos, colocRaw, postPlat, postExt, enlaces, vacRaw, socio] = await Promise.all([
+  const [cands, matriculas, eventos, colocRaw, postPlat, postExt, enlaces, vacRaw, socio, tareasRaw, conclRaw] = await Promise.all([
     porIds('candidates', 'id, first_name, last_name, document_type, document_number, email, phone, city, gender, birth_date, cv_url', 'id', idsPersonas),
     todas('program_enrollments', 'id, candidate_id, status, enrolled_at', q => q.eq('cohort_id', COHORTE)),
     todas('events', 'id, nombre, tipo, fase, modalidad, ubicacion, fecha_hora_inicio, fecha_hora_fin, descripcion, toma_asistencia, external_source, meeting_link', q => q.eq('cohort_id', COHORTE).order('fecha_hora_inicio')),
-    porIds('placements', 'id, talent_id, company_id, job_id, start_date, role_sector, modality, status, deactivated_at, duration_months', 'talent_id', idsPersonas),
+    porIds('placements', 'id, talent_id, company_id, hiring_employer_id, job_id, start_date, role_sector, modality, status, deactivated_at, duration_months', 'talent_id', idsPersonas),
     porIds('applications', 'id, candidate_id, job_id, status, created_at', 'candidate_id', idsPersonas),
     porIds('participant_vacancy_applications', 'id, candidate_id, vacancy_name, company_name, application_url, observations, created_at', 'candidate_id', idsPersonas),
     todas('company_cohorts', 'company_id', q => q.eq('cohort_id', COHORTE)),
     todas('jobs', 'id, company_id, title, total_positions, salary_range, modality, employment_type, required_education_level, required_experience_months, status, is_published, visibility, cities', q => q.eq('cohort_id', COHORTE)),
     // Campo «Género» del registro de la plataforma (D-42); candidates.gender queda de respaldo para registros antiguos.
     porIds('socio_demographic_data', 'id, candidate_id, gender_identity', 'candidate_id', idsPersonas),
+    todas('follow_up_tasks', 'id, candidate_id, titulo, descripcion, estado, prioridad, vence_el, creado_por, created_at, resuelto_el', q => q.eq('cohort_id', COHORTE)),
+    todas('participant_conclusions', 'candidate_id, conclusion, actualizado_por, actualizado_en', q => q.eq('cohort_id', COHORTE)),
   ]);
   const idsEventos = eventos.map(e => String(e.id));
   const [asistRaw, asistEmpRaw, evidRaw] = await Promise.all([
@@ -170,6 +226,8 @@ async function cargarTodo(): Promise<DatosCohorte> {
   // Vacantes y empresas que hacen falta para nombrar postulaciones y colocaciones de la plataforma.
   const jobsExtra = await porIds('jobs', 'id, company_id, title, cohort_id', 'id', [...postPlat.map(p => String(p.job_id ?? '')), ...colocRaw.map(c => String(c.job_id ?? ''))]);
   const idsEmpresas = [...enlaces.map(e => String(e.company_id)), ...jobsExtra.map(j => String(j.company_id ?? '')), ...colocRaw.map(c => String(c.company_id ?? ''))];
+  const empleadoresExt = await porIds('hiring_employers', 'id, name', 'id', colocRaw.map(c => String(c.hiring_employer_id ?? '')));
+  const externoPorId = new Map(empleadoresExt.map(h => [String(h.id), String(h.name)]));
   const emps = await porIds('companies', 'id, company_name, trade_name, nit, size_range, industry, operation_cities, address, contact_name, contact_phone, contact_email, created_at', 'id', idsEmpresas);
   const empPorId = new Map(emps.map(e => [String(e.id), e]));
   const jobPorId = new Map(jobsExtra.map(j => [String(j.id), j]));
@@ -234,16 +292,29 @@ async function cargarTodo(): Promise<DatosCohorte> {
         const j = jobPorId.get(String(p.job_id ?? ''));
         return { id: String(p.id), personaId: String(p.candidate_id), origen: 'plataforma' as const, vacante: String(j?.title ?? 'Vacante de la plataforma'),
           empresa: nombreEmpresa(j?.company_id), estado: s(p.status), fecha: s(p.created_at), url: null, observaciones: null,
-          atribuible: Boolean(j && (idsVinculadas.has(String(j.company_id ?? '')) || String(j.cohort_id ?? '') === COHORTE)) };
+          atribuible: Boolean(j && (idsVinculadas.has(String(j.company_id ?? '')) || String(j.cohort_id ?? '') === COHORTE)),
+          excluida: intermFuera.get(String(p.candidate_id)) ?? null };
       }),
       ...postExt.map(p => ({ id: String(p.id), personaId: String(p.candidate_id), origen: 'externa' as const, vacante: String(p.vacancy_name),
-        empresa: s(p.company_name), estado: null, fecha: s(p.created_at), url: s(p.application_url), observaciones: s(p.observations), atribuible: true })),
+        empresa: s(p.company_name), estado: null, fecha: s(p.created_at), url: s(p.application_url), observaciones: s(p.observations), atribuible: true,
+        excluida: intermFuera.get(String(p.candidate_id)) ?? null })),
     ].sort((a, b) => String(b.fecha).localeCompare(String(a.fecha))),
     colocaciones: colocRaw.map(c => ({
-      id: String(c.id), personaId: String(c.talent_id), empresa: nombreEmpresa(c.company_id) ?? (jobPorId.get(String(c.job_id ?? '')) ? nombreEmpresa(jobPorId.get(String(c.job_id))!.company_id) : null),
+      id: String(c.id), personaId: String(c.talent_id),
+      empresa: nombreEmpresa(c.company_id) ?? externoPorId.get(String(c.hiring_employer_id ?? '')) ?? (jobPorId.get(String(c.job_id ?? '')) ? nombreEmpresa(jobPorId.get(String(c.job_id))!.company_id) : null),
       cargo: String(c.role_sector ?? ''), inicio: String(c.start_date), modalidad: s(c.modality), estado: s(c.status),
       activa: !c.deactivated_at, duracionMeses: c.duration_months == null ? null : Number(c.duration_months),
+      excluida: colocFuera.get(String(c.id)) ?? null,
     })),
+    tareas: tareasRaw.filter(t => !personasFuera.has(String(t.candidate_id))).map(t => ({
+      id: String(t.id), personaId: String(t.candidate_id), titulo: String(t.titulo ?? ''), descripcion: s(t.descripcion),
+      estado: (String(t.estado ?? 'abierta') as EstadoTarea), prioridad: (String(t.prioridad ?? 'media') as PrioridadTarea),
+      venceEl: s(t.vence_el), creadaPor: s(t.creado_por), creadaEl: String(t.created_at), resueltaEl: s(t.resuelto_el),
+    })),
+    conclusiones: conclRaw.filter(c => !personasFuera.has(String(c.candidate_id)) && s(c.conclusion)).map(c => ({
+      personaId: String(c.candidate_id), texto: String(c.conclusion), actualizadaPor: s(c.actualizado_por), actualizadaEl: String(c.actualizado_en),
+    })),
+    exclusiones,
     cargadoEl: new Date().toISOString(),
   };
 }
@@ -292,10 +363,16 @@ export function CohorteProvider({ children }: { children: ReactNode }) {
   }, [recargar]);
 
   const borrarEvento: Valor['borrarEvento'] = useCallback(async (id) => {
+    const ev = datos?.eventos.find(e => e.id === id);
+    // Una reserva de Cal.com se cancela allá: si se borra aquí, el webhook la vuelve a crear en la siguiente novedad.
+    if (ev && /cal\.com/i.test(ev.origen ?? '')) return 'Este evento viene de Cal.com: cancélalo allá.';
+    // La base borra en cascada asistencias, empresas y filas de evidencias; los ARCHIVOS del bucket no: se quitan aquí.
+    const rutas = (datos?.evidencias ?? []).filter(x => x.eventoId === id && x.ruta).map(x => x.ruta!);
     const { error } = await supabase!.from('events').delete().eq('id', id);
+    if (!error && rutas.length) await supabase!.storage.from('evidencias-eventos').remove(rutas);
     if (!error) await recargar();
     return mensaje(error);
-  }, [recargar]);
+  }, [datos, recargar]);
 
   const marcarAsistencia: Valor['marcarAsistencia'] = useCallback(async (eventoId, personaId, estado) => {
     const p = datos?.personas.find(x => x.id === personaId);
@@ -365,9 +442,107 @@ export function CohorteProvider({ children }: { children: ReactNode }) {
     return data?.signedUrl ?? null;
   }, []);
 
+  // ─── Tareas y conclusión por persona (FQSD ParticipantTasks) ───────────────────────────────────────────────────
+  const crearTarea: Valor['crearTarea'] = useCallback(async (t) => {
+    if (!t.titulo.trim()) return 'Escribe el título de la tarea.';
+    const p = datos?.personas.find(x => x.id === t.personaId);
+    const { error } = await supabase!.from('follow_up_tasks').insert({
+      cohort_id: COHORTE, candidate_id: t.personaId, enrollment_id: p?.matricula?.id ?? null, titulo: t.titulo.trim(),
+      descripcion: t.descripcion?.trim() || null, prioridad: t.prioridad, vence_el: t.venceEl || null, estado: 'abierta', creado_por: correo,
+    });
+    if (!error) await recargar();
+    return mensaje(error);
+  }, [datos, correo, recargar]);
+
+  const cambiarEstadoTarea: Valor['cambiarEstadoTarea'] = useCallback(async (id, estado) => {
+    const { error } = await supabase!.from('follow_up_tasks')
+      .update({ estado, resuelto_el: estado === 'hecha' ? new Date().toISOString() : null }).eq('id', id);
+    if (!error) await recargar();
+    return mensaje(error);
+  }, [recargar]);
+
+  const guardarConclusion: Valor['guardarConclusion'] = useCallback(async (personaId, texto) => {
+    const p = datos?.personas.find(x => x.id === personaId);
+    const { error } = await supabase!.from('participant_conclusions').upsert({
+      cohort_id: COHORTE, candidate_id: personaId, enrollment_id: p?.matricula?.id ?? null, conclusion: texto.trim() || null,
+      actualizado_por: correo, actualizado_en: new Date().toISOString(),
+    }, { onConflict: 'cohort_id,candidate_id' });
+    if (!error) await recargar();
+    return mensaje(error);
+  }, [datos, correo, recargar]);
+
+  // ─── Intermediación y colocación (FQSD colocaciones.ts): mismas tablas que la plataforma ────────────────────────
+  const crearPostulacionExterna: Valor['crearPostulacionExterna'] = useCallback(async (x) => {
+    if (!x.vacante.trim()) return 'Escribe el nombre de la vacante.';
+    const url = x.url?.trim() || null;
+    if (url && !/^https?:\/\//.test(url)) return 'El enlace debe empezar por http:// o https://';
+    const { error } = await supabase!.from('participant_vacancy_applications').insert({
+      candidate_id: x.personaId, vacancy_name: x.vacante.trim(), company_name: x.empresa?.trim() || null,
+      application_url: url, observations: x.observaciones?.trim() || null, created_by: correo,
+    });
+    if (!error) await recargar();
+    return mensaje(error);
+  }, [correo, recargar]);
+
+  const borrarPostulacionExterna: Valor['borrarPostulacionExterna'] = useCallback(async (id) => {
+    const { error } = await supabase!.from('participant_vacancy_applications').delete().eq('id', id);
+    if (!error) await recargar();
+    return mensaje(error);
+  }, [recargar]);
+
+  const listarEmpleadores: Valor['listarEmpleadores'] = useCallback(async () => {
+    const [c, h] = await Promise.all([
+      todas('companies', 'id, company_name, trade_name, is_active', q => q.order('company_name')),
+      todas('hiring_employers', 'id, name', q => q.order('name')),
+    ]);
+    const out: Empleador[] = [];
+    for (const r of c) { const n = String(r.trade_name || r.company_name || '').trim(); if (n) out.push({ key: `company:${r.id}`, nombre: r.is_active === false ? `${n} (inactiva)` : n, origen: 'empresa' }); }
+    for (const r of h) { const n = String(r.name ?? '').trim(); if (n) out.push({ key: `hiring:${r.id}`, nombre: n, origen: 'externo' }); }
+    return out.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  }, []);
+
+  const crearColocacion: Valor['crearColocacion'] = useCallback(async (c) => {
+    if (!c.cargo.trim()) return 'Escribe el cargo o sector.';
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(c.inicio)) return 'Elige la fecha de inicio.';
+    let company_id: string | null = null, hiring_employer_id: string | null = null;
+    if (c.empleador.startsWith('company:')) company_id = c.empleador.slice(8);
+    else if (c.empleador.startsWith('hiring:')) hiring_employer_id = c.empleador.slice(7);
+    else if (c.empleador.startsWith('nuevo:')) {
+      const name = c.empleador.slice(6).trim();
+      if (!name) return 'Escribe el nombre del empleador.';
+      // Se reusa si ya existe con ese nombre (evita el mismo empleador tres veces).
+      const { data: ya } = await supabase!.from('hiring_employers').select('id').ilike('name', name.replace(/[%_]/g, '\\$&')).limit(1);
+      if (ya && ya.length) hiring_employer_id = String((ya[0] as Fila).id);
+      else {
+        const { data, error } = await supabase!.from('hiring_employers').insert({ name, created_by: correo }).select('id').single();
+        if (error) return mensaje(error);
+        hiring_employer_id = String((data as Fila).id);
+      }
+    } else return 'Elige un empleador.';
+    const { error } = await supabase!.from('placements').insert({
+      talent_id: c.personaId, company_id, hiring_employer_id, job_id: null, start_date: c.inicio, role_sector: c.cargo.trim(),
+      modality: c.modalidad, duration_months: c.duracionMeses, experience_level: c.experiencia, status: 'active',
+      retention_send_mode: c.modoRetencion, disruptia_contact_email: correo,
+    });
+    if (!error) await recargar();
+    return mensaje(error);
+  }, [correo, recargar]);
+
+  const desactivarColocacion: Valor['desactivarColocacion'] = useCallback(async (id, motivo) => {
+    if (!motivo.trim()) return 'Escribe el motivo.';
+    const { error } = await supabase!.from('placements').update({
+      status: 'inactive', deactivated_at: new Date().toISOString(), deactivation_reason: motivo.trim(), deactivated_by: correo,
+    }).eq('id', id);
+    if (!error) await recargar();
+    return mensaje(error);
+  }, [correo, recargar]);
+
   const valor = useMemo(() => ({ datos, cargando, error, cargar, recargar, guardarEvento, borrarEvento, marcarAsistencia, quitarDeEvento,
-    marcarEmpresa, quitarEmpresa, subirEvidencia, borrarEvidencia, abrirEvidencia }),
-    [datos, cargando, error, cargar, recargar, guardarEvento, borrarEvento, marcarAsistencia, quitarDeEvento, marcarEmpresa, quitarEmpresa, subirEvidencia, borrarEvidencia, abrirEvidencia]);
+    marcarEmpresa, quitarEmpresa, subirEvidencia, borrarEvidencia, abrirEvidencia, crearTarea, cambiarEstadoTarea, guardarConclusion,
+    crearPostulacionExterna, borrarPostulacionExterna, listarEmpleadores, crearColocacion, desactivarColocacion }),
+    [datos, cargando, error, cargar, recargar, guardarEvento, borrarEvento, marcarAsistencia, quitarDeEvento, marcarEmpresa, quitarEmpresa,
+      subirEvidencia, borrarEvidencia, abrirEvidencia, crearTarea, cambiarEstadoTarea, guardarConclusion, crearPostulacionExterna,
+      borrarPostulacionExterna, listarEmpleadores, crearColocacion, desactivarColocacion]);
   return <Ctx.Provider value={valor}>{children}</Ctx.Provider>;
 }
 

@@ -11,6 +11,7 @@ import { useCohorte, type Persona, type DatosCohorte } from '../lib/datos';
 import { etapasConRegla, evaluar, indexar, etapaActual, type Resultado } from '../lib/etapas';
 import { fecha, diaBogota, diaLargo, hora, humano, norm, num } from '../lib/formato';
 import { config } from '../lib/config';
+import { TareasPersona, ConclusionPersona, FormPostulacionExterna, BorrarPostulacion, FormColocacion, TerminarColocacion, NoCuenta } from '../ui/Gestion';
 import { BarraDatos, Buscador, Cargando, ErrorDatos, PanelLateral, BloqueFicha, MarcaEtapa, Etiqueta, Pestanas, Vacio } from '../ui/Privado';
 import { KPICard } from '../ui/Comunes';
 
@@ -138,13 +139,14 @@ export default function ParticipantesView() {
         {visibles.length === 0 && <Vacio texto="Nadie coincide con el filtro" />}
       </div>
 
-      {fila && <Ficha f={fila} datos={datos} onCerrar={() => setAbierta(null)} />}
+      {fila && <Ficha key={fila.p.id} f={fila} datos={datos} onCerrar={() => setAbierta(null)} />}
     </div>
   );
 }
 
 function Ficha({ f, datos, onCerrar }: { f: Fila; datos: DatosCohorte; onCerrar: () => void }) {
   const { p } = f;
+  const [registrando, setRegistrando] = useState<'postulacion' | 'colocacion' | null>(null);
   const etapas = etapasConRegla();
   const asist = datos.asistencias.filter(a => a.personaId === p.id)
     .map(a => ({ a, e: datos.eventos.find(e => e.id === a.eventoId) })).filter(x => x.e)
@@ -245,19 +247,46 @@ function Ficha({ f, datos, onCerrar }: { f: Fila; datos: DatosCohorte; onCerrar:
         {posts.length === 0 ? <p className="text-xs text-slate-400 font-bold">Sin postulaciones.</p> : (
           <ul className="space-y-1.5">
             {posts.map(x => (
-              <li key={x.id} className="text-sm">
-                <span className="font-bold text-slate-700">{x.vacante}</span>
-                <span className="text-[11px] text-slate-400"> · {x.empresa ?? 'empresa sin dato'} · {fecha(x.fecha)} · {x.origen === 'externa' ? 'externa' : humano(x.estado)}</span>
+              <li key={x.id} className="text-sm flex items-start justify-between gap-2">
+                <span>
+                  <span className="font-bold text-slate-700">{x.vacante}</span>
+                  <span className="text-[11px] text-slate-400"> · {x.empresa ?? 'empresa sin dato'} · {fecha(x.fecha)} · {x.origen === 'externa' ? 'externa' : humano(x.estado)}</span>
+                  {' '}<NoCuenta motivo={x.excluida} />
+                </span>
+                <BorrarPostulacion p={x} />
               </li>
             ))}
           </ul>
         )}
+        <div className="mt-2">
+          {registrando === 'postulacion'
+            ? <FormPostulacionExterna persona={p} onListo={() => setRegistrando(null)} onCancelar={() => setRegistrando(null)} />
+            : <button type="button" onClick={() => setRegistrando('postulacion')} className="text-[11px] font-black uppercase tracking-widest text-brand">+ Postulación externa</button>}
+        </div>
       </BloqueFicha>
 
       <BloqueFicha titulo="Colocación">
         {cols.length === 0 ? <p className="text-xs text-slate-400 font-bold">Sin colocación registrada.</p> : cols.map(c => (
-          <p key={c.id} className="text-sm"><span className="font-bold text-slate-700">{c.cargo}</span><span className="text-[11px] text-slate-400"> · {c.empresa ?? '—'} · desde {fecha(c.inicio)}{c.activa ? '' : ' · desactivada'}</span></p>
+          <div key={c.id} className="text-sm">
+            <span className="font-bold text-slate-700">{c.cargo}</span>
+            <span className="text-[11px] text-slate-400"> · {c.empresa ?? '—'} · desde {fecha(c.inicio)}{c.activa ? '' : ' · terminada'}</span>
+            {' '}<NoCuenta motivo={c.excluida} />
+            <div><TerminarColocacion c={c} /></div>
+          </div>
         ))}
+        <div className="mt-2">
+          {registrando === 'colocacion'
+            ? <FormColocacion persona={p} onListo={() => setRegistrando(null)} onCancelar={() => setRegistrando(null)} />
+            : <button type="button" onClick={() => setRegistrando('colocacion')} className="text-[11px] font-black uppercase tracking-widest text-brand">+ Colocación</button>}
+        </div>
+      </BloqueFicha>
+
+      <BloqueFicha titulo={`Tareas (${datos.tareas.filter(t => t.personaId === p.id && (t.estado === 'abierta' || t.estado === 'en_progreso')).length} abiertas)`}>
+        <TareasPersona persona={p} />
+      </BloqueFicha>
+
+      <BloqueFicha titulo="Conclusión del equipo">
+        <ConclusionPersona persona={p} />
       </BloqueFicha>
     </PanelLateral>
   );

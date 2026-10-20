@@ -1,13 +1,16 @@
 /**
  * Colocación (E5, D-36): el proceso de las PERSONAS hacia el empleo — intermediación (postulaciones a vacantes,
- * de la plataforma o externas) y colocación (placements). Va aparte de Empresas. Solo lectura en la v1:
- * registrar colocaciones desde aquí escribe en `placements`, que dispara correos de retención (siguiente iteración).
+ * de la plataforma o externas) y colocación (placements). Va aparte de Empresas.
+ * Desde 2.6 (portado de FQSD) registra postulaciones externas y colocaciones, y marca colocaciones terminadas.
+ * Escribe en las tablas de la plataforma: una colocación con recordatorios automáticos hace que la plataforma
+ * envíe correos de seguimiento a la persona. Lo excluido de las métricas (A-22) se ve marcado «No cuenta».
  */
 import { useState } from 'react';
-import { useCohorte } from '../lib/datos';
+import { useCohorte, type Persona } from '../lib/datos';
+import { BorrarPostulacion, ElegirPersona, FormColocacion, FormPostulacionExterna, NoCuenta, TerminarColocacion } from '../ui/Gestion';
 import { etapasConRegla } from '../lib/etapas';
 import { fecha, humano, norm, num } from '../lib/formato';
-import { BarraDatos, Buscador, Cargando, ErrorDatos, Etiqueta, Pestanas, Vacio } from '../ui/Privado';
+import { BarraDatos, Buscador, Cargando, ErrorDatos, Etiqueta, PanelLateral, Pestanas, Vacio } from '../ui/Privado';
 import { KPICard } from '../ui/Comunes';
 import { filasPersonas } from './ParticipantesView';
 
@@ -15,6 +18,7 @@ export default function ColocacionView() {
   const { datos, error, cargando } = useCohorte();
   const [tab, setTab] = useState<'intermediados' | 'colocados'>('intermediados');
   const [q, setQ] = useState('');
+  const [registro, setRegistro] = useState<{ tipo: 'postulacion' | 'colocacion'; persona: Persona | null } | null>(null);
   if (error && !datos) return <ErrorDatos error={error} />;
   if (!datos) return <Cargando />;
 
@@ -31,11 +35,24 @@ export default function ColocacionView() {
     <div className={`space-y-6 ${cargando ? 'opacity-80' : ''}`}>
       <BarraDatos />
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <KPICard label="Personas postuladas" value={num(porPersona.size)} color="text-brand" />
+        <KPICard label="Personas postuladas" value={num(new Set(datos.postulaciones.filter(p => !p.excluida).map(p => p.personaId)).size)} color="text-brand" />
         <KPICard label="Postulaciones" value={num(datos.postulaciones.length)} color="text-qsd-purple" subtext={`${datos.postulaciones.filter(p => p.origen === 'externa').length} externas`} />
-        <KPICard label="Personas colocadas" value={num(new Set(datos.colocaciones.filter(c => c.activa).map(c => c.personaId)).size)} color="text-qsd-orange" />
-        <KPICard label="Colocaciones activas" value={num(datos.colocaciones.filter(c => c.activa).length)} color="text-emerald-600" />
+        <KPICard label="Personas colocadas" value={num(new Set(datos.colocaciones.filter(c => c.activa && !c.excluida).map(c => c.personaId)).size)} color="text-qsd-orange" />
+        <KPICard label="Colocaciones activas" value={num(datos.colocaciones.filter(c => c.activa && !c.excluida).length)} color="text-emerald-600" />
       </div>
+      <div className="flex flex-wrap gap-3">
+        <button type="button" onClick={() => setRegistro({ tipo: 'postulacion', persona: null })} className="px-4 py-2.5 rounded-xl bg-white border border-slate-100 text-[10px] font-black uppercase tracking-widest text-brand">+ Postulación externa</button>
+        <button type="button" onClick={() => setRegistro({ tipo: 'colocacion', persona: null })} className="px-4 py-2.5 rounded-xl bg-brand text-white text-[10px] font-black uppercase tracking-widest">+ Colocación</button>
+      </div>
+      {registro && (
+        <PanelLateral abierto onCerrar={() => setRegistro(null)} titulo={registro.tipo === 'colocacion' ? 'Registrar colocación' : 'Registrar postulación externa'}
+          subtitulo={registro.persona ? registro.persona.nombre : 'Elige la persona'}>
+          {registro.persona ? (registro.tipo === 'colocacion'
+            ? <FormColocacion persona={registro.persona} onListo={() => setRegistro(null)} onCancelar={() => setRegistro({ ...registro, persona: null })} />
+            : <FormPostulacionExterna persona={registro.persona} onListo={() => setRegistro(null)} onCancelar={() => setRegistro({ ...registro, persona: null })} />)
+            : <ElegirPersona onElegir={p => setRegistro({ ...registro, persona: p })} />}
+        </PanelLateral>
+      )}
       <div className="flex flex-wrap items-center gap-3">
         <Pestanas activa={tab} onCambio={setTab} opciones={[{ key: 'intermediados', label: 'Intermediación', n: porPersona.size }, { key: 'colocados', label: 'Colocados', n: datos.colocaciones.length }]} />
         <Buscador valor={q} onCambio={setQ} placeholder="Buscar persona…" />
@@ -57,7 +74,7 @@ export default function ColocacionView() {
                         <td className="px-6 py-3"><p className="text-sm font-bold text-slate-800">{p?.nombre ?? '—'}</p><p className="text-[11px] text-slate-400">{p?.documento ?? ''}</p></td>
                         <td className="px-6 py-3">{f?.actual != null ? <Etiqueta tono="brand">{etapas[f.actual].etapa}</Etiqueta> : '—'}</td>
                         <td className="px-6 py-3"><ul className="space-y-1">{ps.map(x => (
-                          <li key={x.id} className="text-xs"><span className="font-bold text-slate-700">{x.vacante}</span><span className="text-slate-400"> · {x.empresa ?? '—'} · {x.origen === 'externa' ? 'externa' : humano(x.estado)}</span></li>
+                          <li key={x.id} className="text-xs flex items-center gap-2"><span><span className="font-bold text-slate-700">{x.vacante}</span><span className="text-slate-400"> · {x.empresa ?? '—'} · {x.origen === 'externa' ? 'externa' : humano(x.estado)}</span> <NoCuenta motivo={x.excluida} /></span><BorrarPostulacion p={x} /></li>
                         ))}</ul></td>
                         <td className="px-6 py-3 text-xs font-bold text-slate-500 whitespace-nowrap">{fecha(ps[0]?.fecha)}</td>
                       </tr>
@@ -80,7 +97,7 @@ export default function ColocacionView() {
                       <td className="px-6 py-3 text-sm text-slate-600">{c.cargo}</td>
                       <td className="px-6 py-3 text-xs font-bold text-slate-500 whitespace-nowrap">{fecha(c.inicio)}</td>
                       <td className="px-6 py-3 text-xs text-slate-500">{c.modalidad ?? '—'}</td>
-                      <td className="px-6 py-3">{c.activa ? <Etiqueta tono="emerald">Activa</Etiqueta> : <Etiqueta>Desactivada</Etiqueta>}</td>
+                      <td className="px-6 py-3">{c.activa ? <Etiqueta tono="emerald">Activa</Etiqueta> : <Etiqueta>Terminada</Etiqueta>} <NoCuenta motivo={c.excluida} /><div><TerminarColocacion c={c} /></div></td>
                     </tr>
                   ); })}
                 </tbody>

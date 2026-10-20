@@ -62,9 +62,10 @@ export function indexar(d: DatosCohorte): Indice {
   }
   return {
     asistio,
-    postulado: new Set(d.postulaciones.map(p => p.personaId)),
-    postuladoProyecto: new Set(d.postulaciones.filter(p => p.atribuible).map(p => p.personaId)),
-    colocado: new Set(d.colocaciones.filter(c => c.activa).map(c => c.personaId)),
+    // A-22: quien está excluido de la intermediación no cuenta como postulado (igual que la función pública v10).
+    postulado: new Set(d.postulaciones.filter(p => !p.excluida).map(p => p.personaId)),
+    postuladoProyecto: new Set(d.postulaciones.filter(p => p.atribuible && !p.excluida).map(p => p.personaId)),
+    colocado: new Set(d.colocaciones.filter(c => c.activa && !c.excluida).map(c => c.personaId)),
   };
 }
 

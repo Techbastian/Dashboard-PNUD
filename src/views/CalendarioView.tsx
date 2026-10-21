@@ -5,9 +5,11 @@
  * Lo que cuenta para las etapas es `asistio` (ver lib/etapas.ts y la función pública v4).
  */
 import { Fragment, useMemo, useState, type FormEvent } from 'react';
-import { ChevronLeft, ChevronRight, Plus, MapPin, Video, Users, Trash2, Loader2, Check, X as XIcon, CalendarDays, List, Building2, Paperclip, Upload, Link2, ExternalLink, FileText, Image as ImageIcon } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, MapPin, Video, Users, Trash2, Loader2, Check, X as XIcon, CalendarDays, List, Building2, Paperclip, Upload, Link2, ExternalLink, FileText, Image as ImageIcon, Phone } from 'lucide-react';
 import { config } from '../lib/config';
-import { useCohorte, type Evento, type EstadoAsistencia, type Persona, type TipoEvidencia, type Evidencia } from '../lib/datos';
+import { useCohorte, type Evento, type EstadoAsistencia, type Persona, type TipoEvidencia, type Evidencia, type Llamada } from '../lib/datos';
+import { ElegirPersona } from '../ui/Gestion';
+import { BloqueEstado, FormLlamada, ItemLlamada, propositoLabel, resultadoLabel } from '../ui/Seguimiento';
 import { diaBogota, diaLargo, hora, hhmmBogota, isoBogota, norm, humano } from '../lib/formato';
 import { useAuth } from '../lib/auth';
 import { BarraDatos, Cargando, ErrorDatos, PanelLateral, BloqueFicha, Etiqueta, Pestanas, Vacio, Aviso } from '../ui/Privado';
@@ -42,6 +44,10 @@ function celdasMes(anio: number, mes: number) {
 }
 
 type Edicion = { evento: Partial<Evento>; dia: string } | null;
+/** D-54: panel de llamada (nueva desde el botón o el día, o una existente). */
+type PanelLl = { modo: 'nueva'; dia: string } | { modo: 'ver'; id: string } | null;
+const LLAMADAS = '__llamadas';
+const COLOR_LLAMADA = '#7c3aed';
 
 export default function CalendarioView() {
   const { datos, error, cargando } = useCohorte();
@@ -51,6 +57,7 @@ export default function CalendarioView() {
   const [abiertoId, setAbiertoId] = useState<string | null>(null);
   const [edicion, setEdicion] = useState<Edicion>(null);
   const [filtroTipo, setFiltroTipo] = useState<string>('todos');
+  const [panelLl, setPanelLl] = useState<PanelLl>(null);
 
   const conteo = useMemo(() => {
     const m = new Map<string, { asistio: number; total: number }>();
@@ -65,13 +72,18 @@ export default function CalendarioView() {
   if (error && !datos) return <ErrorDatos error={error} />;
   if (!datos) return <Cargando />;
 
-  const eventos = datos.eventos.filter(e => filtroTipo === 'todos' || (e.tipo ?? OTRO) === filtroTipo || (filtroTipo === OTRO && !config.catalogo.some(c => c.tipo === e.tipo)));
+  const eventos = filtroTipo === LLAMADAS ? [] : datos.eventos.filter(e => filtroTipo === 'todos' || (e.tipo ?? OTRO) === filtroTipo || (filtroTipo === OTRO && !config.catalogo.some(c => c.tipo === e.tipo)));
   const porDia = new Map<string, Evento[]>();
   for (const e of eventos) { const d = diaBogota(e.inicio); porDia.set(d, [...(porDia.get(d) ?? []), e]); }
+  const llamadas = filtroTipo === 'todos' || filtroTipo === LLAMADAS ? datos.llamadas : [];
+  const llPorDia = new Map<string, Llamada[]>();
+  for (const l of [...llamadas].sort((a, b) => a.fecha.localeCompare(b.fecha))) { const d = diaBogota(l.fecha); llPorDia.set(d, [...(llPorDia.get(d) ?? []), l]); }
+  const nombreDe = new Map(datos.personas.map(p => [p.id, p.nombre]));
   const abierto = datos.eventos.find(e => e.id === abiertoId) ?? null;
   const tipos = [{ key: 'todos', label: 'Todos', n: datos.eventos.length },
     ...config.catalogo.map(c => ({ key: c.tipo, label: c.label, n: datos.eventos.filter(e => e.tipo === c.tipo).length })),
-    { key: OTRO, label: 'Otros', n: datos.eventos.filter(e => !config.catalogo.some(c => c.tipo === e.tipo)).length }];
+    { key: OTRO, label: 'Otros', n: datos.eventos.filter(e => !config.catalogo.some(c => c.tipo === e.tipo)).length },
+    { key: LLAMADAS, label: 'Llamadas', n: datos.llamadas.length }];
 
   const nuevo = (dia = hoy) => setEdicion({ evento: { tipo: config.catalogo[0]?.tipo ?? null, modalidad: config.catalogo[0]?.modalidad ?? 'Presencial', tomaAsistencia: true }, dia });
 
@@ -84,7 +96,7 @@ export default function CalendarioView() {
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Pestanas opciones={tipos.filter(t => t.key === 'todos' || t.n > 0 || config.catalogo.some(c => c.tipo === t.key))} activa={filtroTipo} onCambio={setFiltroTipo} />
+        <Pestanas opciones={tipos.filter(t => t.key === 'todos' || t.key === LLAMADAS || t.n > 0 || config.catalogo.some(c => c.tipo === t.key))} activa={filtroTipo} onCambio={setFiltroTipo} />
         <div className="flex items-center gap-2">
           <div className="flex bg-white border border-slate-100 rounded-xl p-1">
             {([['mes', CalendarDays, 'Mes'], ['agenda', List, 'Agenda']] as const).map(([k, I, l]) => (
@@ -96,6 +108,10 @@ export default function CalendarioView() {
           </div>
           <button type="button" onClick={() => nuevo()} className="flex items-center gap-2 bg-brand text-white rounded-xl px-4 py-2.5 text-[10px] font-black uppercase tracking-widest hover:opacity-90">
             <Plus size={14} /> Nuevo evento
+          </button>
+          <button type="button" onClick={() => { setAbiertoId(null); setEdicion(null); setPanelLl({ modo: 'nueva', dia: hoy }); }}
+            className="flex items-center gap-2 bg-white border border-brand/30 text-brand rounded-xl px-4 py-2.5 text-[10px] font-black uppercase tracking-widest hover:bg-brand/5">
+            <Phone size={14} /> Llamada
           </button>
         </div>
       </div>
@@ -115,6 +131,7 @@ export default function CalendarioView() {
               {DIAS.map(d => <div key={d} className="px-3 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-gray-100 bg-gray-50">{d}</div>)}
               {celdasMes(ym.y, ym.m).map(({ dia, delMes }) => {
                 const evs = porDia.get(dia) ?? [];
+                const lls = llPorDia.get(dia) ?? [];
                 return (
                   <div key={dia} className={`group min-h-28 border-b border-r border-gray-50 p-2 flex flex-col gap-1 ${delMes ? '' : 'bg-slate-50/50'}`}>
                     <div className="flex items-center justify-between">
@@ -128,6 +145,13 @@ export default function CalendarioView() {
                         <span className="text-slate-400">{hora(e.inicio)}</span> <span className="line-clamp-2">{e.nombre}</span>
                       </button>
                     ))}
+                    {lls.map(l => (
+                      <button key={l.id} type="button" onClick={() => setPanelLl({ modo: 'ver', id: l.id })} title={`Llamada · ${nombreDe.get(l.personaId) ?? ''} · ${resultadoLabel(l.resultado)}`}
+                        className={`text-left rounded-lg px-1.5 py-1 text-[10px] font-bold leading-tight text-slate-700 hover:brightness-95 ${l.resultado == null ? 'border border-dashed' : ''}`}
+                        style={{ background: `color-mix(in srgb, ${COLOR_LLAMADA} 10%, white)`, borderLeft: `3px solid ${COLOR_LLAMADA}`, borderColor: l.resultado == null ? COLOR_LLAMADA : undefined }}>
+                        <span className="text-slate-400"><Phone size={9} className="inline -mt-0.5" /> {hora(l.fecha)}</span> <span className="line-clamp-2">{nombreDe.get(l.personaId) ?? 'Persona'}</span>
+                      </button>
+                    ))}
                   </div>
                 );
               })}
@@ -135,12 +159,13 @@ export default function CalendarioView() {
           </div>
         </div>
       ) : (
-        <Agenda eventos={eventos} conteo={conteo} hoy={hoy} onAbrir={setAbiertoId} />
+        <Agenda eventos={eventos} llamadas={llamadas} nombreDe={nombreDe} conteo={conteo} hoy={hoy} onAbrir={setAbiertoId} onAbrirLlamada={id => setPanelLl({ modo: 'ver', id })} />
       )}
 
       {abierto && !edicion && (
         <PanelEvento evento={abierto} onCerrar={() => setAbiertoId(null)} onEditar={() => setEdicion({ evento: abierto, dia: diaBogota(abierto.inicio) })} />
       )}
+      {panelLl && <PanelLlamada panel={panelLl} onCerrar={() => setPanelLl(null)} />}
       {edicion && (
         <FormEvento inicial={edicion} onCerrar={() => setEdicion(null)} onGuardado={id => { setEdicion(null); if (id) setAbiertoId(id); }} />
       )}
@@ -148,26 +173,46 @@ export default function CalendarioView() {
   );
 }
 
-function Agenda({ eventos, conteo, hoy, onAbrir }: { eventos: Evento[]; conteo: Map<string, { asistio: number; total: number }>; hoy: string; onAbrir: (id: string) => void }) {
+function Agenda({ eventos, llamadas, nombreDe, conteo, hoy, onAbrir, onAbrirLlamada }: { eventos: Evento[]; llamadas: Llamada[]; nombreDe: Map<string, string>; conteo: Map<string, { asistio: number; total: number }>; hoy: string; onAbrir: (id: string) => void; onAbrirLlamada: (id: string) => void }) {
   const { datos } = useCohorte();
   const nEvid = (id: string) => datos?.evidencias.filter(x => x.eventoId === id).length ?? 0;
   const nEmp = (id: string) => datos?.asistenciaEmpresas.filter(x => x.eventoId === id && x.estado === 'asistio').length ?? 0;
   const [verPasados, setVerPasados] = useState(false);
   const lista = eventos.filter(e => verPasados || diaBogota(e.inicio) >= hoy);
-  const grupos = new Map<string, Evento[]>();
-  for (const e of lista) { const d = diaBogota(e.inicio); grupos.set(d, [...(grupos.get(d) ?? []), e]); }
+  type Item = { k: 'e'; e: Evento; t: string } | { k: 'l'; l: Llamada; t: string };
+  const items: Item[] = [...lista.map(e => ({ k: 'e' as const, e, t: e.inicio })),
+    ...llamadas.filter(l => verPasados || diaBogota(l.fecha) >= hoy).map(l => ({ k: 'l' as const, l, t: l.fecha }))].sort((a, b) => a.t.localeCompare(b.t));
+  const grupos = new Map<string, Item[]>();
+  for (const it of items) { const d = diaBogota(it.t); grupos.set(d, [...(grupos.get(d) ?? []), it]); }
   return (
     <div className="glass-card overflow-hidden">
       <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-        <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">{verPasados ? 'Todos los eventos' : 'Próximos eventos'}</h3>
+        <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">{verPasados ? 'Todos los eventos y llamadas' : 'Próximos eventos y llamadas'}</h3>
         <button type="button" onClick={() => setVerPasados(v => !v)} className="text-[10px] font-black uppercase tracking-widest text-brand">{verPasados ? 'Solo próximos' : 'Ver también pasados'}</button>
       </div>
-      {grupos.size === 0 ? <Vacio texto="No hay eventos" /> : (
+      {grupos.size === 0 ? <Vacio texto="No hay eventos ni llamadas" /> : (
         <ul className="divide-y divide-gray-50">
-          {[...grupos.entries()].map(([dia, evs]) => (
+          {[...grupos.entries()].map(([dia, its]) => (
             <Fragment key={dia}>
-              <li className="px-6 py-2 bg-gray-50 text-[10px] font-black text-slate-400 uppercase tracking-widest">{diaLargo(evs[0].inicio)}{dia === hoy ? ' · hoy' : ''}</li>
-              {evs.map(e => {
+              <li className="px-6 py-2 bg-gray-50 text-[10px] font-black text-slate-400 uppercase tracking-widest">{diaLargo(its[0].t)}{dia === hoy ? ' · hoy' : ''}</li>
+              {its.map(it => {
+                if (it.k === 'l') {
+                  const l = it.l;
+                  return (
+                    <li key={l.id}>
+                      <button type="button" onClick={() => onAbrirLlamada(l.id)} className="w-full text-left px-6 py-3 flex items-center gap-4 hover:bg-gray-50/60">
+                        <span className="w-20 shrink-0 text-xs font-black text-slate-500 tnum">{hora(l.fecha)}</span>
+                        <Phone size={12} className="shrink-0" style={{ color: COLOR_LLAMADA }} />
+                        <span className="flex-1 min-w-0">
+                          <span className="block text-sm font-bold text-slate-800 truncate">Llamada · {nombreDe.get(l.personaId) ?? 'Persona'}</span>
+                          <span className="block text-[11px] font-bold text-slate-400">{propositoLabel(l.proposito)}{l.registradaPor ? ` · ${l.registradaPor}` : ''}</span>
+                        </span>
+                        <Etiqueta tono={l.resultado == null ? 'brand' : l.resultado === 'contesto' ? 'emerald' : 'amber'}>{resultadoLabel(l.resultado)}</Etiqueta>
+                      </button>
+                    </li>
+                  );
+                }
+                const e = it.e;
                 const c = conteo.get(e.id);
                 return (
                   <li key={e.id}>
@@ -552,5 +597,37 @@ function EvidenciasDelEvento({ evento }: { evento: Evento }) {
       </div>
       {error && <div className="mt-2"><Aviso tono="red">{error}</Aviso></div>}
     </BloqueFicha>
+  );
+}
+
+/** D-54: llamada desde el Calendario. Nueva: elegir persona → registrar o agendar. Existente: ver, completar o cancelar. */
+function PanelLlamada({ panel, onCerrar }: { panel: NonNullable<PanelLl>; onCerrar: () => void }) {
+  const { datos } = useCohorte();
+  const [persona, setPersona] = useState<Persona | null>(null);
+  const [inactivar, setInactivar] = useState<{ personaId: string; nota: string } | null>(null);
+  if (!datos) return null;
+  const l = panel.modo === 'ver' ? datos.llamadas.find(x => x.id === panel.id) ?? null : null;
+  if (panel.modo === 'ver' && !l && !inactivar) return null; // se canceló
+  const quien = inactivar ? datos.personas.find(p => p.id === inactivar.personaId) : l ? datos.personas.find(p => p.id === l.personaId) : persona;
+  const titulo = panel.modo === 'nueva' ? 'Llamada' : `Llamada · ${quien?.nombre ?? ''}`;
+  const alInactivar = (p: Persona) => (nota: string) => setInactivar({ personaId: p.id, nota });
+
+  return (
+    <PanelLateral abierto onCerrar={onCerrar} titulo={titulo}
+      subtitulo={quien ? <>{quien.tipoDoc ?? 'Doc.'} {quien.documento ?? '—'}{quien.celular ? ` · ${quien.celular}` : ''}</> : 'Elige la persona'}>
+      {inactivar && quien ? (
+        <BloqueEstado persona={quien} datos={datos} etapa={null} inactivarCon={inactivar.nota} />
+      ) : l && quien ? (
+        <ul><ItemLlamada l={l} onNoContinua={alInactivar(quien)} /></ul>
+      ) : persona ? (
+        <div className="space-y-3">
+          <button type="button" onClick={() => setPersona(null)} className="text-[10px] font-black uppercase tracking-widest text-slate-400">← Otra persona</button>
+          <FormLlamada persona={persona} dia={panel.modo === 'nueva' ? panel.dia : undefined}
+            onListo={(r, nota) => { if (r === 'no_continua') setInactivar({ personaId: persona.id, nota }); else onCerrar(); }} onCancelar={onCerrar} />
+        </div>
+      ) : (
+        <ElegirPersona onElegir={setPersona} />
+      )}
+    </PanelLateral>
   );
 }

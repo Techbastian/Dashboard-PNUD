@@ -67,7 +67,8 @@ export type ResultadoLlamada = 'contesto' | 'no_contesto' | 'buzon_ocupado' | 'n
 export type CanalContacto = 'llamada' | 'whatsapp' | 'presencial' | 'correo' | 'otro';
 export type PropositoContacto = 'orientacion' | 'seguimiento' | 'reconvocatoria' | 'verificacion_retencion' | 'otro';
 export interface Llamada {
-  id: string; personaId: string; fecha: string; canal: CanalContacto; proposito: PropositoContacto; resultado: ResultadoLlamada;
+  /** `resultado` null = agendada (D-54). */
+  id: string; personaId: string; fecha: string; canal: CanalContacto; proposito: PropositoContacto; resultado: ResultadoLlamada | null;
   notas: string | null; opinion: string | null; proximaAccion: string | null; proximaFecha: string | null; registradaPor: string | null;
 }
 /** Cambio de estado activo / inactivo (participant_status_log, A-26, D-52). Solo se agregan filas; el actual es el más reciente. */
@@ -141,6 +142,10 @@ interface Valor {
   listarEmpleadores: () => Promise<Empleador[]>;
   crearColocacion: (c: NuevaColocacion) => Promise<string | null>;
   registrarLlamada: (x: Omit<Llamada, 'id' | 'registradaPor' | 'fecha'> & { fecha?: string }) => Promise<string | null>;
+  /** Completa una llamada agendada con lo que pasó (D-54). */
+  completarLlamada: (id: string, x: { resultado: ResultadoLlamada; notas?: string | null; opinion?: string | null; proximaAccion?: string | null; proximaFecha?: string | null }) => Promise<string | null>;
+  /** Cancela una llamada agendada (sin resultado). Queda en el historial. */
+  cancelarLlamada: (id: string) => Promise<string | null>;
   /** Activo / inactivo (deserción interna). Al inactivar, motivo y observación son obligatorios. */
   cambiarEstado: (x: { personaId: string; estado: 'activo' | 'inactivo'; motivo?: string | null; observacion?: string | null; fechaEfectiva?: string; etapa?: string | null }) => Promise<string | null>;
   /** Historial de cambios de una persona (se pide al abrir su ficha; no viene en la carga general). */
@@ -322,7 +327,7 @@ async function cargarTodo(): Promise<DatosCohorte> {
     exclusiones,
     llamadas: llamRaw.filter(l => !personasFuera.has(String(l.candidate_id))).map(l => ({
       id: String(l.id), personaId: String(l.candidate_id), fecha: String(l.fecha), canal: String(l.canal) as CanalContacto,
-      proposito: String(l.proposito) as PropositoContacto, resultado: String(l.resultado) as ResultadoLlamada, notas: s(l.notas), opinion: s(l.opinion),
+      proposito: String(l.proposito) as PropositoContacto, resultado: (l.resultado == null ? null : String(l.resultado)) as ResultadoLlamada | null, notas: s(l.notas), opinion: s(l.opinion),
       proximaAccion: s(l.proxima_accion), proximaFecha: s(l.proxima_fecha), registradaPor: s(l.registrado_por),
     })),
     estados: estRaw.filter(e => !personasFuera.has(String(e.candidate_id))).map(e => ({
@@ -470,6 +475,23 @@ export function CohorteProvider({ children }: { children: ReactNode }) {
     return mensaje(error);
   }, [correo, recargar]);
 
+  const completarLlamada: Valor['completarLlamada'] = useCallback(async (id, x) => {
+    const { error } = await supabase!.from('participant_contacts').update({
+      resultado: x.resultado, notas: x.notas?.trim() || null, opinion: x.opinion?.trim() || null,
+      proxima_accion: x.proximaAccion?.trim() || null, proxima_fecha: x.proximaFecha || null, registrado_por: correo,
+    }).eq('id', id);
+    if (!error) await recargar();
+    return mensaje(error);
+  }, [correo, recargar]);
+
+  const cancelarLlamada: Valor['cancelarLlamada'] = useCallback(async (id) => {
+    const l = datos?.llamadas.find(x => x.id === id);
+    if (l && l.resultado != null) return 'Solo se cancelan llamadas agendadas; las hechas quedan.';
+    const { error } = await supabase!.from('participant_contacts').delete().eq('id', id).is('resultado', null);
+    if (!error) await recargar();
+    return mensaje(error);
+  }, [datos, recargar]);
+
   const cambiarEstado: Valor['cambiarEstado'] = useCallback(async (x) => {
     if (x.estado === 'inactivo' && (!x.motivo?.trim() || !x.observacion?.trim())) return 'Para inactivar, elige el motivo y escribe la observación.';
     const { error } = await supabase!.from('participant_status_log').insert({
@@ -564,10 +586,10 @@ export function CohorteProvider({ children }: { children: ReactNode }) {
   const valor = useMemo(() => ({ datos, cargando, error, cargar, recargar, guardarEvento, borrarEvento, marcarAsistencia, quitarDeEvento,
     marcarEmpresa, quitarEmpresa, subirEvidencia, borrarEvidencia, abrirEvidencia,
     crearPostulacionExterna, borrarPostulacionExterna, listarEmpleadores, crearColocacion, desactivarColocacion,
-    registrarLlamada, cambiarEstado, historialDe }),
+    registrarLlamada, completarLlamada, cancelarLlamada, cambiarEstado, historialDe }),
     [datos, cargando, error, cargar, recargar, guardarEvento, borrarEvento, marcarAsistencia, quitarDeEvento, marcarEmpresa, quitarEmpresa,
       subirEvidencia, borrarEvidencia, abrirEvidencia, crearPostulacionExterna,
-      borrarPostulacionExterna, listarEmpleadores, crearColocacion, desactivarColocacion, registrarLlamada, cambiarEstado, historialDe]);
+      borrarPostulacionExterna, listarEmpleadores, crearColocacion, desactivarColocacion, registrarLlamada, completarLlamada, cancelarLlamada, cambiarEstado, historialDe]);
   return <Ctx.Provider value={valor}>{children}</Ctx.Provider>;
 }
 

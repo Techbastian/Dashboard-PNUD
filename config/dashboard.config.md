@@ -26,17 +26,20 @@ identidad:
 ## Grupos de documentos
 
 Claves del bloque `documentos` del formulario (no son datos personales). Una lista = la persona debe tener TODOS;
-`{ alguno: [...] }` = AL MENOS UNO (A-11).
+`{ alguno: [...] }` = AL MENOS UNO (A-11). La clave es el **slug** de la pregunta en la Fase Documental (si no tiene
+slug, su etiqueta en minúsculas con `_`). P-18: las claves anteriores eran etiquetas y no coincidían con los slugs.
 
 ```yaml
 grupos:
-  mitigadas:
-    - entrega_de_servicio_de_mitigacion_de_barreras
-  seguimiento:                     # P5: al menos una sesión de seguimiento poscolocación
+  perfilamiento:                   # P-18: «Informe individual de perfilamiento» (Fase Documental)
+    - perfilamiento_plan_accion
+  mitigadas:                       # «Entrega de servicio de mitigación de barreras»
+    - mitigacion_barreras_pnud
+  seguimiento:                     # P5: al menos una sesión de seguimiento poscolocación (documentos de la persona)
     alguno:
-      - proceso_de_seguimiento_de_colocacion_15_dias_persona
-      - proceso_de_seguimiento_de_colocacion_30_dias_persona
-      - proceso_de_seguimiento_de_colocacion_90_dias_persona
+      - seguimiento_15_dias
+      - seguimiento_30_dias
+      - seguimiento_90_dias
 ```
 
 ## Metas del contrato (P-05, A-09)
@@ -144,6 +147,7 @@ Columnas de ✓ que no son etapas de la ruta. También sirven de filtro (con / s
 participantes:
   marcas:
     - { titulo: Hoja de vida, regla: hv, ayuda: Hoja de vida cargada en la plataforma }
+    - { titulo: Perfilamiento, regla: "documentos:perfilamiento", ayuda: Informe individual de perfilamiento cargado en la Fase Documental }
 ```
 
 ## Secciones del Dashboard

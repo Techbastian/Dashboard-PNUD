@@ -1,9 +1,10 @@
 /**
  * Empresas (E6, D-36): las organizaciones vinculadas al proyecto (company_cohorts), con sus datos de contacto
  * y sus vacantes de la cohorte. Va aparte del proceso de las personas (Colocación). Privada: trae contactos.
+ * D-61: con `empresas.diagnostico: true` en la config, columna, filtro y enlace al diagnóstico de cada empresa (A-31).
  */
 import { Fragment, useState } from 'react';
-import { ChevronDown, ChevronRight, Mail, Phone, User } from 'lucide-react';
+import { ChevronDown, ChevronRight, ExternalLink, FileCheck2, Mail, Phone, User } from 'lucide-react';
 import { useCohorte, type Empresa, type Evento } from '../lib/datos';
 import { config } from '../lib/config';
 import { fecha, humano, norm, num } from '../lib/formato';
@@ -15,13 +16,16 @@ export default function EmpresasView() {
   const [q, setQ] = useState('');
   const [tamano, setTamano] = useState('todos');
   const [soloConVacantes, setSoloConVacantes] = useState(false);
+  const [diag, setDiag] = useState<'todas' | 'con' | 'sin'>('todas');
   const [abierta, setAbierta] = useState<string | null>(null);
   if (error && !datos) return <ErrorDatos error={error} />;
   if (!datos) return <Cargando />;
 
+  const conDiagnostico = config.empresas.diagnostico;
   const tamanos = [...new Set(datos.empresas.map(e => e.tamano ?? 'Sin dato'))];
   const visibles = datos.empresas.filter(e =>
     (tamano === 'todos' || (e.tamano ?? 'Sin dato') === tamano) && (!soloConVacantes || e.vacantes.length > 0) &&
+    (!conDiagnostico || diag === 'todas' || (diag === 'con') === Boolean(e.diagnostico)) &&
     (!q.trim() || [e.nombre, e.razonSocial, e.nit, e.sector, e.contacto.nombre, ...e.municipios].some(v => norm(v).includes(norm(q)))));
   const vacantes = datos.empresas.flatMap(e => e.vacantes);
   // Eventos a los que asistió cada empresa (A-10). "Sensibilizada" = asistió a un evento cuyo tipo registra empresas (D-40).
@@ -34,13 +38,15 @@ export default function EmpresasView() {
     eventosDe.set(a.empresaId, [...(eventosDe.get(a.empresaId) ?? []), ev]);
   }
   const sensibilizada = (id: string) => (eventosDe.get(id) ?? []).some(e => tiposEmpresa.has(e.tipo ?? ''));
+  const columnas = ['', 'Empresa', 'Tamaño', 'Sector', 'Municipios', 'Sensibilizada', ...(conDiagnostico ? ['Diagnóstico'] : []), 'Vacantes'];
 
   return (
     <div className={`space-y-6 ${cargando ? 'opacity-80' : ''}`}>
       <BarraDatos />
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className={`grid grid-cols-2 md:grid-cols-3 ${conDiagnostico ? 'xl:grid-cols-6' : 'xl:grid-cols-5'} gap-4`}>
         <KPICard label="Empresas vinculadas" value={num(datos.empresas.length)} color="text-brand" />
         {tiposEmpresa.size > 0 && <KPICard label="Sensibilizadas" value={num(datos.empresas.filter(e => sensibilizada(e.id)).length)} color="text-emerald-600" subtext="Asistieron a un evento de sensibilización" />}
+        {conDiagnostico && <KPICard label="Con diagnóstico" value={num(datos.empresas.filter(e => e.diagnostico).length)} color="text-emerald-600" subtext="Con el enlace al diagnóstico registrado" />}
         <KPICard label="Con vacantes" value={num(datos.empresas.filter(e => e.vacantes.length).length)} color="text-emerald-600" />
         <KPICard label="Cargos" value={num(vacantes.length)} color="text-qsd-purple" />
         <KPICard label="Puestos" value={num(vacantes.reduce((s, v) => s + v.puestos, 0))} color="text-qsd-teal" />
@@ -50,6 +56,11 @@ export default function EmpresasView() {
         <select value={tamano} onChange={e => setTamano(e.target.value)} aria-label="Tamaño" className="bg-white border border-slate-100 rounded-2xl px-4 py-2.5 text-xs font-bold text-slate-600">
           <option value="todos">Todos los tamaños</option>{tamanos.map(t => <option key={t} value={t}>{t}</option>)}
         </select>
+        {conDiagnostico && (
+          <select value={diag} onChange={e => setDiag(e.target.value as typeof diag)} aria-label="Diagnóstico" className="bg-white border border-slate-100 rounded-2xl px-4 py-2.5 text-xs font-bold text-slate-600">
+            <option value="todas">Con y sin diagnóstico</option><option value="con">Con diagnóstico</option><option value="sin">Sin diagnóstico</option>
+          </select>
+        )}
         <label className="flex items-center gap-2 text-xs font-bold text-slate-500"><input type="checkbox" checked={soloConVacantes} onChange={e => setSoloConVacantes(e.target.checked)} className="accent-[var(--color-brand)]" /> Solo con vacantes</label>
       </div>
 
@@ -57,7 +68,7 @@ export default function EmpresasView() {
         <div className="overflow-x-auto">
           <table className="w-full text-left min-w-[860px]">
             <thead className="bg-gray-50 border-b border-gray-100"><tr>
-              {['', 'Empresa', 'Tamaño', 'Sector', 'Municipios', 'Sensibilizada', 'Vacantes'].map(h => <th key={h} className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">{h}</th>)}
+              {columnas.map(h => <th key={h} className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">{h}</th>)}
             </tr></thead>
             <tbody className="divide-y divide-gray-50">
               {visibles.map(e => (
@@ -69,9 +80,14 @@ export default function EmpresasView() {
                     <td className="px-4 py-3 text-xs text-slate-600 max-w-[14rem]">{e.sector ?? '—'}</td>
                     <td className="px-4 py-3 text-xs text-slate-600 max-w-[12rem]">{e.municipios.join(', ') || '—'}</td>
                     <td className="px-4 py-3">{sensibilizada(e.id) ? <Etiqueta tono="emerald">Sí</Etiqueta> : <span className="text-xs text-slate-300">—</span>}</td>
+                    {conDiagnostico && (
+                      <td className="px-4 py-3">{e.diagnostico
+                        ? <a href={e.diagnostico.url} target="_blank" rel="noreferrer" onClick={ev => ev.stopPropagation()} className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 hover:underline"><FileCheck2 size={14} />Ver</a>
+                        : <span className="text-xs text-slate-300">—</span>}</td>
+                    )}
                     <td className="px-4 py-3">{e.vacantes.length ? <Etiqueta tono="brand">{e.vacantes.length} · {e.vacantes.reduce((s, v) => s + v.puestos, 0)} puestos</Etiqueta> : <span className="text-xs text-slate-300">—</span>}</td>
                   </tr>
-                  {abierta === e.id && <tr><td colSpan={7} className="bg-slate-50/60 px-6 py-5"><Detalle e={e} eventos={eventosDe.get(e.id) ?? []} /></td></tr>}
+                  {abierta === e.id && <tr><td colSpan={columnas.length} className="bg-slate-50/60 px-6 py-5"><Detalle e={e} eventos={eventosDe.get(e.id) ?? []} /></td></tr>}
                 </Fragment>
               ))}
             </tbody>
@@ -92,6 +108,7 @@ function Detalle({ e, eventos }: { e: Empresa; eventos: Evento[] }) {
         <p className="flex items-center gap-2 text-slate-700"><Phone size={14} className="text-slate-400" />{e.contacto.telefono ?? '—'}</p>
         <p className="flex items-center gap-2 text-slate-700 break-all"><Mail size={14} className="text-slate-400" />{e.contacto.correo ?? '—'}</p>
         <p className="text-[11px] text-slate-400 pt-1">Razón social: {e.razonSocial}<br />Dirección: {e.direccion ?? '—'}<br />Registrada: {fecha(e.registradaEl)}</p>
+        {config.empresas.diagnostico && <Diagnostico e={e} />}
         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest pt-3">Eventos a los que asistió ({eventos.length})</p>
         {eventos.length === 0 ? <p className="text-xs font-bold text-slate-400">Ninguno registrado en el Calendario.</p>
           : <ul className="space-y-1">{eventos.map(ev => <li key={ev.id} className="text-xs text-slate-600"><b>{ev.nombre}</b> · {fecha(ev.inicio)}</li>)}</ul>}
@@ -112,6 +129,47 @@ function Detalle({ e, eventos }: { e: Empresa; eventos: Evento[] }) {
           </ul>
         )}
       </div>
+    </div>
+  );
+}
+
+/** D-61: enlace al diagnóstico (p. ej. el PDF en Drive). El dashboard público solo recibe el número, nunca el enlace. */
+function Diagnostico({ e }: { e: Empresa }) {
+  const { guardarDiagnostico } = useCohorte();
+  const [editando, setEditando] = useState(false);
+  const [url, setUrl] = useState(e.diagnostico?.url ?? '');
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const guardar = async (valor: string) => {
+    setGuardando(true); setError(null);
+    const err = await guardarDiagnostico(e.id, valor, e.diagnostico?.fecha ?? null);
+    setGuardando(false);
+    if (err) setError(err); else setEditando(false);
+  };
+  return (
+    <div className="pt-3 space-y-2">
+      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Diagnóstico</p>
+      {!editando ? (
+        <div className="flex flex-wrap items-center gap-3">
+          {e.diagnostico
+            ? <a href={e.diagnostico.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-600 hover:underline"><ExternalLink size={13} />Abrir diagnóstico{e.diagnostico.fecha ? ` · ${fecha(e.diagnostico.fecha)}` : ''}</a>
+            : <span className="text-xs font-bold text-slate-400">Sin diagnóstico registrado.</span>}
+          <button type="button" onClick={() => { setUrl(e.diagnostico?.url ?? ''); setEditando(true); }} className="text-[11px] font-black text-brand hover:underline">
+            {e.diagnostico ? 'Cambiar' : 'Agregar enlace'}
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <input type="url" value={url} onChange={ev => setUrl(ev.target.value)} placeholder="https://drive.google.com/…" aria-label="Enlace al diagnóstico"
+            className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700" />
+          <div className="flex flex-wrap gap-2">
+            <button type="button" disabled={guardando || !url.trim()} onClick={() => guardar(url)} className="px-3 py-1.5 rounded-xl bg-brand text-white text-[11px] font-black disabled:opacity-50">Guardar</button>
+            {e.diagnostico && <button type="button" disabled={guardando} onClick={() => guardar('')} className="px-3 py-1.5 rounded-xl bg-red-50 text-red-600 text-[11px] font-black disabled:opacity-50">Quitar</button>}
+            <button type="button" disabled={guardando} onClick={() => { setEditando(false); setError(null); }} className="px-3 py-1.5 rounded-xl bg-slate-100 text-slate-500 text-[11px] font-black">Cancelar</button>
+          </div>
+        </div>
+      )}
+      {error && <p className="text-[11px] font-bold text-red-600">{error}</p>}
     </div>
   );
 }

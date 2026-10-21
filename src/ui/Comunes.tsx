@@ -283,3 +283,30 @@ export function rellenarDias(serie: SeriePunto[]): SeriePunto[] {
   }
   return out;
 }
+
+const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+
+/** Serie por día con días en cero y filtro por mes (chips solo si hay más de un mes). Registros por día (FQSD) y gráfico `linea`. */
+export function SeriePorDia({ serie, etiquetaValor = 'registros' }: { serie: SeriePunto[]; etiquetaValor?: string }) {
+  const [mes, setMes] = useState('todo');
+  const completa = rellenarDias(serie);
+  const meses = [...new Set(completa.map(p => p.fecha.slice(0, 7)))].map(k => ({ key: k, label: MESES[Number(k.slice(5, 7)) - 1] }));
+  const vista = mes === 'todo' ? completa : completa.filter(p => p.fecha.startsWith(mes));
+  const chips = meses.length > 1 ? [{ key: 'todo', label: 'Todo' }, ...meses] : [];
+  return (
+    <div className="space-y-4">
+      {chips.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {chips.map(c => (
+            <button key={c.key} type="button" onClick={() => setMes(c.key)} aria-pressed={mes === c.key}
+              className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors ${
+                mes === c.key ? 'bg-brand text-white' : 'bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-slate-600'}`}>
+              {c.label}
+            </button>
+          ))}
+        </div>
+      )}
+      <AreaChart data={vista} etiquetaValor={etiquetaValor} />
+    </div>
+  );
+}

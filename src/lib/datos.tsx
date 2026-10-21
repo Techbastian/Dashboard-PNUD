@@ -55,6 +55,8 @@ export interface Vacante {
 export interface Empresa {
   id: string; nombre: string; razonSocial: string; nit: string; tamano: string | null; sector: string | null; municipios: string[];
   direccion: string | null; contacto: { nombre: string | null; telefono: string | null; correo: string | null }; registradaEl: string | null; vacantes: Vacante[];
+  /** D-61 (A-31): enlace al diagnóstico de la empresa en este proyecto; solo si la config activa `empresas.diagnostico`. */
+  diagnostico: { url: string; fecha: string | null } | null;
 }
 /** Asistencia de una EMPRESA a un evento (A-10, D-40): P1 empresa sensibilizada = asistió a un evento de sensibilización. */
 export interface AsistenciaEmpresa { id: string; eventoId: string; empresaId: string; estado: 'agendado' | 'asistio' | 'no_asistio' | 'cancelado'; asistentes: number | null; marcadoEn: string | null; marcadoPor: string | null }
@@ -148,6 +150,8 @@ interface Valor {
   cancelarLlamada: (id: string) => Promise<string | null>;
   /** Borra una llamada ya hecha: solo super_admin y con motivo (D-58). Queda en el historial con el motivo. */
   borrarLlamada: (id: string, motivo: string) => Promise<string | null>;
+  /** D-61: guarda o quita (url vacía) el enlace al diagnóstico de la empresa (RPC guardar_diagnostico, A-31). */
+  guardarDiagnostico: (empresaId: string, url: string, fecha?: string | null) => Promise<string | null>;
   /** Activo / inactivo (deserción interna). Al inactivar, motivo y observación son obligatorios. */
   cambiarEstado: (x: { personaId: string; estado: 'activo' | 'inactivo'; motivo?: string | null; observacion?: string | null; fechaEfectiva?: string; etapa?: string | null }) => Promise<string | null>;
   /** Historial de cambios de una persona (se pide al abrir su ficha; no viene en la carga general). */
@@ -229,7 +233,7 @@ async function cargarTodo(): Promise<DatosCohorte> {
     porIds('placements', 'id, talent_id, company_id, hiring_employer_id, job_id, start_date, role_sector, modality, status, deactivated_at, duration_months', 'talent_id', idsPersonas),
     porIds('applications', 'id, candidate_id, job_id, status, created_at', 'candidate_id', idsPersonas),
     porIds('participant_vacancy_applications', 'id, candidate_id, vacancy_name, company_name, application_url, observations, created_at', 'candidate_id', idsPersonas),
-    todas('company_cohorts', 'company_id', q => q.eq('cohort_id', COHORTE)),
+    todas('company_cohorts', config.empresas.diagnostico ? 'company_id, diagnostico_url, diagnostico_fecha' : 'company_id', q => q.eq('cohort_id', COHORTE)),
     todas('jobs', 'id, company_id, title, total_positions, salary_range, modality, employment_type, required_education_level, required_experience_months, status, is_published, visibility, cities', q => q.eq('cohort_id', COHORTE)),
     // Campo «Género» del registro de la plataforma (D-42); candidates.gender queda de respaldo para registros antiguos.
     porIds('socio_demographic_data', 'id, candidate_id, gender_identity', 'candidate_id', idsPersonas),
@@ -279,11 +283,13 @@ async function cargarTodo(): Promise<DatosCohorte> {
     ciudades: (j.cities as string[] | null) ?? [],
   }));
   const idsVinculadas = new Set(enlaces.map(e => String(e.company_id)));
+  const enlacePorEmpresa = new Map(enlaces.map(e => [String(e.company_id), e]));
   const empresas: Empresa[] = emps.filter(e => idsVinculadas.has(String(e.id))).map(e => ({
     id: String(e.id), nombre: String(e.trade_name || e.company_name), razonSocial: String(e.company_name), nit: String(e.nit ?? ''),
     tamano: s(e.size_range), sector: s(e.industry), municipios: (e.operation_cities as string[] | null) ?? [], direccion: s(e.address),
     contacto: { nombre: s(e.contact_name), telefono: s(e.contact_phone), correo: s(e.contact_email) }, registradaEl: s(e.created_at),
     vacantes: vacantes.filter(v => v.empresaId === String(e.id)),
+    diagnostico: (() => { const l = enlacePorEmpresa.get(String(e.id)); return s(l?.diagnostico_url) ? { url: String(l!.diagnostico_url), fecha: s(l!.diagnostico_fecha) } : null; })(),
   })).sort((x, y) => x.nombre.localeCompare(y.nombre, 'es'));
 
   return {
@@ -502,6 +508,15 @@ export function CohorteProvider({ children }: { children: ReactNode }) {
     return mensaje(error);
   }, [recargar]);
 
+  const guardarDiagnostico: Valor['guardarDiagnostico'] = useCallback(async (empresaId, url, fecha) => {
+    const u = url.trim();
+    if (u && !/^https:\/\//i.test(u)) return 'El enlace debe empezar por https://';
+    const { error } = await supabase!.rpc('guardar_diagnostico', { p_empresa: empresaId, p_cohorte: COHORTE, p_url: u, p_fecha: fecha || null });
+    if (!error) await recargar();
+    if (error && /PGRST202|Could not find the function/i.test(`${error.code ?? ''} ${error.message}`)) return 'Falta aplicar en la base la función guardar_diagnostico (A-31).';
+    return mensaje(error);
+  }, [recargar]);
+
   const cambiarEstado: Valor['cambiarEstado'] = useCallback(async (x) => {
     if (x.estado === 'inactivo' && (!x.motivo?.trim() || !x.observacion?.trim())) return 'Para inactivar, elige el motivo y escribe la observación.';
     const { error } = await supabase!.from('participant_status_log').insert({
@@ -596,10 +611,10 @@ export function CohorteProvider({ children }: { children: ReactNode }) {
   const valor = useMemo(() => ({ datos, cargando, error, cargar, recargar, guardarEvento, borrarEvento, marcarAsistencia, quitarDeEvento,
     marcarEmpresa, quitarEmpresa, subirEvidencia, borrarEvidencia, abrirEvidencia,
     crearPostulacionExterna, borrarPostulacionExterna, listarEmpleadores, crearColocacion, desactivarColocacion,
-    registrarLlamada, completarLlamada, cancelarLlamada, borrarLlamada, cambiarEstado, historialDe }),
+    registrarLlamada, completarLlamada, cancelarLlamada, borrarLlamada, guardarDiagnostico, cambiarEstado, historialDe }),
     [datos, cargando, error, cargar, recargar, guardarEvento, borrarEvento, marcarAsistencia, quitarDeEvento, marcarEmpresa, quitarEmpresa,
       subirEvidencia, borrarEvidencia, abrirEvidencia, crearPostulacionExterna,
-      borrarPostulacionExterna, listarEmpleadores, crearColocacion, desactivarColocacion, registrarLlamada, completarLlamada, cancelarLlamada, borrarLlamada, cambiarEstado, historialDe]);
+      borrarPostulacionExterna, listarEmpleadores, crearColocacion, desactivarColocacion, registrarLlamada, completarLlamada, cancelarLlamada, borrarLlamada, guardarDiagnostico, cambiarEstado, historialDe]);
   return <Ctx.Provider value={valor}>{children}</Ctx.Provider>;
 }
 

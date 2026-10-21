@@ -13,7 +13,7 @@ import {
   destaca, fueraDeFoco, pct, personasFueraDeFoco, pregunta, respuesta, type Respuesta,
 } from '../lib/respuestas';
 import type { PublicStats } from '../lib/usePublicStats';
-import { DonutChart, ListaBarras, SinDatos, toChart } from '../ui/Comunes';
+import { DonutChart, ListaBarras, SeriePorDia, SinDatos, toChart, type SeriePunto } from '../ui/Comunes';
 import {
   AlertaFoco, ApiladaFilas, BarrasPareadas, CifraCard, EmbudoBloques, MetaFila, TarjetaBloque, type FilaApilada,
 } from '../ui/Graficos';
@@ -101,7 +101,11 @@ function filasApilada(g: Grafico, data: PublicStats): { filas: FilaApilada[]; ca
 
 function GraficoCard({ g, data }: { g: Grafico; data: PublicStats }) {
   let cuerpo: ReactNode;
-  if (g.tipo === 'apilada') {
+  if (g.tipo === 'linea') {
+    const x = resolver(data, g.datos!);
+    const serie = Array.isArray(x) ? (x as SeriePunto[]).filter(p => typeof p?.fecha === 'string') : [];
+    cuerpo = serie.length ? <SeriePorDia serie={serie} /> : <SinDatos texto="Aún no hay registros" />;
+  } else if (g.tipo === 'apilada') {
     const a = filasApilada(g, data);
     cuerpo = a ? <ApiladaFilas filas={a.filas} categorias={a.categorias} paleta={g.paleta} /> : <SinDatos texto="Aún no hay respuestas" />;
   } else if (g.tipo === 'pareadas') {
@@ -190,7 +194,11 @@ function ContenidoPestana({ p, data }: { p: Pestana; data: PublicStats }) {
       )}
       {p.graficos.length > 0 && (
         <div className={`grid grid-cols-1 md:grid-cols-2 gap-6 ${p.graficos.length % 3 === 0 ? 'xl:grid-cols-3' : ''}`}>
-          {p.graficos.map(g => <ErrorBoundary key={g.titulo} nombre={g.titulo}><GraficoCard g={g} data={data} /></ErrorBoundary>)}
+          {p.graficos.map(g => {
+            const tarjeta = <ErrorBoundary key={g.titulo} nombre={g.titulo}><GraficoCard g={g} data={data} /></ErrorBoundary>;
+            // D-62: la serie por día va a todo el ancho.
+            return g.tipo === 'linea' ? <div key={g.titulo} className="col-span-full">{tarjeta}</div> : tarjeta;
+          })}
         </div>
       )}
       {p.pie && <p className="text-[11px] font-bold text-slate-400 px-1">{p.pie}</p>}

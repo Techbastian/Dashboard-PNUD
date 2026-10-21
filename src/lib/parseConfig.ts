@@ -45,7 +45,8 @@ export interface CifraPestana {
   /** personas → tarjeta de alerta «fuera del foco»; empresas → agrega «N fuera del foco» a la nota. */ foco?: 'personas' | 'empresas';
 }
 export interface Grafico {
-  titulo: string; nota?: string; tipo: 'barras' | 'dona' | 'apilada' | 'pareadas';
+  /** linea (D-62): serie por día (`datos` = lista de {fecha, n}, p. ej. registros_por_dia), a todo el ancho. */
+  titulo: string; nota?: string; tipo: 'barras' | 'dona' | 'apilada' | 'pareadas' | 'linea';
   datos?: string; pregunta?: string; preguntas?: string[];
   /** dona: lista de barras debajo (ruta). */ debajo?: string;
   /** barras: orden fijo de categorías (se muestran también las que están en 0). */ orden?: string[];
@@ -108,6 +109,8 @@ export interface DashboardConfig {
   preguntas: Pregunta[];
   foco: Foco | null;
   informe: Informe;
+  /** D-61: `diagnostico: true` = el módulo Empresas registra el enlace al diagnóstico de cada empresa (A-31). */
+  empresas: { diagnostico: boolean };
 }
 
 export function parseConfigMd(md: string): DashboardConfig {
@@ -137,6 +140,7 @@ export function parseConfigMd(md: string): DashboardConfig {
     modulos: validarModulos(c.modulos),
     ...validarPestanas(c.pestanas, c.preguntas, c.foco, c.informe),
     hitos: validarHitos(c.hitos),
+    empresas: { diagnostico: (c.empresas as { diagnostico?: unknown } | undefined)?.diagnostico === true },
   };
 }
 
@@ -199,7 +203,7 @@ function validarMotivos(m: unknown): Motivo[] {
 }
 
 const TIPOS_PREGUNTA = ['opcion', 'escala', 'multiple', 'monto', 'numero', 'rango', 'razon', 'alguna'];
-const TIPOS_GRAFICO = ['barras', 'dona', 'apilada', 'pareadas'];
+const TIPOS_GRAFICO = ['barras', 'dona', 'apilada', 'pareadas', 'linea'];
 
 function validarPestanas(p: unknown, q: unknown, f: unknown, inf: unknown) {
   const err = (m: string): never => { throw new Error(`dashboard.config.md: ${m}`); };
@@ -234,6 +238,7 @@ function validarPestanas(p: unknown, q: unknown, f: unknown, inf: unknown) {
       const donde = `pestanas[${i}].graficos[${j}]`;
       if (!g?.titulo || !TIPOS_GRAFICO.includes(g.tipo)) err(`${donde} necesita titulo y tipo (${TIPOS_GRAFICO.join(', ')})`);
       if (!g.datos && !g.pregunta && !g.preguntas?.length) err(`${donde} necesita datos, pregunta o preguntas`);
+      if (g.tipo === 'linea' && !g.datos) err(`${donde}: linea necesita datos (lista de {fecha, n})`);
       if (g.pregunta) existe(g.pregunta, donde);
       g.preguntas?.forEach(id => existe(id, donde));
       return g;

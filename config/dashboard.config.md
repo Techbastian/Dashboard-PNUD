@@ -52,7 +52,7 @@ metas:
   # P1 Gestión empresarial
   - { fase: 1, meta: Empresas sensibilizadas en empleo inclusivo,  actual: "empresas.asistencia_por_tipo[sensibilizacion].empresas", ayuda: Asistieron a al menos un evento de sensibilización (Calendario) }
   - { fase: 1, meta: Espacios de aprendizaje con empresas,         actual: "formacion.eventos_por_tipo[sensibilizacion].realizados", ayuda: Eventos de sensibilización ya realizados }
-  - { fase: 1, meta: Empresas con diagnóstico de empleo inclusivo, actual: pendiente, ayuda: El diagnóstico empresarial aún no se registra en la plataforma }
+  - { fase: 1, meta: Empresas con diagnóstico de empleo inclusivo, actual: empresas.con_diagnostico, ayuda: Con el enlace al diagnóstico registrado en el módulo Empresas (P-21) }
   # P2 Mapeo y focalización
   - { fase: 2, meta: Personas registradas,                         actual: "formularios[recorrer-pnud].personas" }
   - { fase: 2, meta: Mujeres registradas,                          actual: "formularios[recorrer-pnud].mujeres" }
@@ -160,6 +160,16 @@ secciones: [metas, cifras, registros, embudo, estados, empresas, vacantes]
 
 ```yaml
 modulos: [dashboard, participantes, colocacion, empresas, calendario, listados, informes]
+```
+
+## Empresas (P-21, D-61)
+
+Diagnóstico de empleo inclusivo (P1): el equipo pega en la ficha de la empresa el enlace al PDF en Drive. El dashboard
+público solo muestra cuántas empresas lo tienen, nunca el enlace.
+
+```yaml
+empresas:
+  diagnostico: true
 ```
 
 ---
@@ -376,6 +386,8 @@ pestanas:
       - { label: Mujeres registradas,  valor: "formularios[recorrer-pnud].mujeres",  meta: Mujeres registradas }
       - { label: Con línea base,       valor: "formularios[linea-base].personas", de: "formularios[recorrer-pnud].personas", deLabel: registradas, faltan: aún sin línea base }
     graficos:
+      # P-22: registros por día, a todo el ancho (D-62)
+      - { titulo: Registros por día, nota: "Personas que se registraron cada día · filtro por mes", tipo: linea, datos: registros_por_dia }
       - { titulo: Género y edad, nota: "Registro · campo «Género»", tipo: dona, datos: postulaciones.por_genero, debajo: postulaciones.por_edad_rangos }
       - titulo: Nivel educativo
         nota: Registro · sin agrupar, de menor a mayor

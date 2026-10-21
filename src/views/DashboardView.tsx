@@ -12,6 +12,7 @@ import { usePublicStats, type PublicStats } from '../lib/usePublicStats';
 import {
   AreaChart, DistCard, DonutChart, KPICard, ListaBarras, Tarjeta, rellenarDias, toChart, type SeriePunto,
 } from '../ui/Comunes';
+import { BloqueHitos } from '../ui/Hitos';
 import { ErrorBoundary } from '../ui/ErrorBoundary';
 import type { Distribucion } from '../lib/config';
 import DashboardPestanas from './DashboardPestanas';
@@ -250,6 +251,7 @@ export default function DashboardView() {
   const formularios = lista(data, 'formularios')?.map(d => ({ ...d, categoria: capital(d.categoria.replace(/-/g, ' ')) })) ?? null;
 
   const secciones: Record<string, () => ReactElement | null> = {
+    hitos: () => (config.hitos.length === 0 ? null : <BloqueHitos data={data} />),
     metas: () => config.metas.length === 0 ? null : (
       <Tarjeta id="metas" titulo="Metas del proyecto" descripcion="Avance en vivo frente a las metas del convenio">
         <div className="space-y-8">

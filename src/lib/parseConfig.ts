@@ -51,9 +51,18 @@ export interface Grafico {
   /** apilada/pareadas: categorías que suman la cifra (exactas o prefijo numérico: "4" = «4 - Alto»). */ destacar?: string[];
   porGenero?: boolean; top?: number; paleta?: 'escala' | 'sino';
 }
+/**
+ * Hito del contrato (D-55): meta, % que activa el pago (`umbral`) y fecha estimada. Sin montos (decisión de Sebastián).
+ * `documental` = entregable sin cifra (pólizas, informes): lo marca el equipo con `cumplido: true` en la config.
+ */
+export interface Hito {
+  numero: number; titulo: string; fecha?: string; grupo?: string; ayuda?: string;
+  meta?: number; valor?: string; umbral?: number; documental?: boolean; cumplido?: boolean;
+}
 export interface Pestana {
   id: string; titulo: string;
   /** Bloques fijos de Hitos. */ alertaFoco?: boolean; metas?: boolean; embudo?: boolean;
+  /** D-55: tarjetas de los hitos del contrato (bloque `hitos`). */ hitos?: boolean;
   cifras: CifraPestana[]; graficos: Grafico[]; pie?: string;
 }
 export interface HojaInforme {
@@ -91,6 +100,8 @@ export interface DashboardConfig {
   modulos: Modulo[];
   /** D-43: si hay pestañas, el Dashboard se arma con ellas y `secciones` se ignora. */
   pestanas: Pestana[];
+  /** D-55: hitos de pago del contrato. */
+  hitos: Hito[];
   preguntas: Pregunta[];
   foco: Foco | null;
   informe: Informe;
@@ -122,6 +133,7 @@ export function parseConfigMd(md: string): DashboardConfig {
     secciones: c.secciones ?? ['metas', 'cifras', 'embudo', 'personas'],
     modulos: validarModulos(c.modulos),
     ...validarPestanas(c.pestanas, c.preguntas, c.foco, c.informe),
+    hitos: validarHitos(c.hitos),
   };
 }
 
@@ -257,4 +269,24 @@ function validarCatalogo(c: unknown): TipoEvento[] {
     if (!/^[a-z0-9_-]+$/.test(t.tipo)) throw new Error(`dashboard.config.md: catalogo[${i}].tipo «${t.tipo}» solo admite minúsculas, números, - y _`);
     return { tipo: t.tipo, label: t.label, descripcion: t.descripcion, modalidad: t.modalidad, color: t.color, empresas: Boolean(t.empresas) };
   });
+}
+
+function validarHitos(h: unknown): Hito[] {
+  if (h == null) return [];
+  if (!Array.isArray(h)) throw new Error('dashboard.config.md: hitos debe ser una lista');
+  const vistos = new Set<number>();
+  return (h as Partial<Hito>[]).map((x, i) => {
+    const e = (m: string) => { throw new Error(`dashboard.config.md: hitos[${i}] ${m}`); };
+    if (typeof x?.numero !== 'number' || !x.titulo) e('necesita numero y titulo');
+    if (vistos.has(x.numero!)) e(`repite el numero ${x.numero}`);
+    vistos.add(x.numero!);
+    const fecha = x.fecha == null ? undefined : String((x.fecha as unknown) instanceof Date ? (x.fecha as unknown as Date).toISOString().slice(0, 10) : x.fecha);
+    if (fecha && !/^\d{4}-\d{2}-\d{2}$/.test(fecha)) e('fecha debe ser AAAA-MM-DD');
+    if (!x.documental) {
+      if (typeof x.meta !== 'number' || x.meta <= 0) e('necesita meta (número > 0) o documental: true');
+      if (!x.valor) e('necesita valor (ruta de la función pública)');
+    }
+    if (x.umbral != null && (typeof x.umbral !== 'number' || x.umbral <= 0 || x.umbral > 100)) e('umbral es un % entre 1 y 100');
+    return { ...x, fecha } as Hito;
+  }).sort((a, b) => a.numero - b.numero);
 }

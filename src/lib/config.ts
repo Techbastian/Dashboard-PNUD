@@ -2,6 +2,6 @@
 import cfg from 'virtual:dashboard-config';
 import type { DashboardConfig } from './parseConfig';
 export type {
-  Cifra, Meta, Etapa, Marca, Distribucion, DashboardConfig, TipoEvento, Pregunta, Foco, Pestana, Grafico, CifraPestana, HojaInforme, Motivo,
+  Cifra, Meta, Etapa, Marca, Distribucion, DashboardConfig, TipoEvento, Pregunta, Foco, Pestana, Grafico, CifraPestana, HojaInforme, Motivo, Hito,
 } from './parseConfig';
 export const config = cfg as DashboardConfig;

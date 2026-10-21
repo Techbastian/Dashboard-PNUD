@@ -18,6 +18,7 @@ import {
   AlertaFoco, ApiladaFilas, BarrasPareadas, CifraCard, EmbudoBloques, MetaFila, TarjetaBloque, type FilaApilada,
 } from '../ui/Graficos';
 import { ErrorBoundary } from '../ui/ErrorBoundary';
+import { BloqueHitos } from '../ui/Hitos';
 
 type Item = { categoria: string; n: number };
 const valorN = (data: PublicStats, ruta?: string) => {
@@ -178,6 +179,7 @@ function ContenidoPestana({ p, data }: { p: Pestana; data: PublicStats }) {
           </div>
         </ErrorBoundary>
       )}
+      {p.hitos && config.hitos.length > 0 && <ErrorBoundary nombre="hitos"><BloqueHitos data={data} /></ErrorBoundary>}
       {p.metas && config.metas.length > 0 && <ErrorBoundary nombre="metas"><Metas data={data} /></ErrorBoundary>}
       {p.embudo && config.embudo.length > 0 && (
         <ErrorBoundary nombre="embudo">

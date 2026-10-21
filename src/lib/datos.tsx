@@ -146,6 +146,8 @@ interface Valor {
   completarLlamada: (id: string, x: { resultado: ResultadoLlamada; notas?: string | null; opinion?: string | null; proximaAccion?: string | null; proximaFecha?: string | null }) => Promise<string | null>;
   /** Cancela una llamada agendada (sin resultado). Queda en el historial. */
   cancelarLlamada: (id: string) => Promise<string | null>;
+  /** Borra una llamada ya hecha: solo super_admin y con motivo (D-58). Queda en el historial con el motivo. */
+  borrarLlamada: (id: string, motivo: string) => Promise<string | null>;
   /** Activo / inactivo (deserción interna). Al inactivar, motivo y observación son obligatorios. */
   cambiarEstado: (x: { personaId: string; estado: 'activo' | 'inactivo'; motivo?: string | null; observacion?: string | null; fechaEfectiva?: string; etapa?: string | null }) => Promise<string | null>;
   /** Historial de cambios de una persona (se pide al abrir su ficha; no viene en la carga general). */
@@ -492,6 +494,14 @@ export function CohorteProvider({ children }: { children: ReactNode }) {
     return mensaje(error);
   }, [datos, recargar]);
 
+  const borrarLlamada: Valor['borrarLlamada'] = useCallback(async (id, motivo) => {
+    if (motivo.trim().length < 3) return 'Escribe el motivo del borrado.';
+    const { error } = await supabase!.rpc('borrar_llamada', { p_llamada: id, p_motivo: motivo.trim() });
+    if (!error) await recargar();
+    if (error && /PGRST202|Could not find the function/i.test(`${error.code ?? ''} ${error.message}`)) return 'Falta aplicar en la base la función borrar_llamada (A-30).';
+    return mensaje(error);
+  }, [recargar]);
+
   const cambiarEstado: Valor['cambiarEstado'] = useCallback(async (x) => {
     if (x.estado === 'inactivo' && (!x.motivo?.trim() || !x.observacion?.trim())) return 'Para inactivar, elige el motivo y escribe la observación.';
     const { error } = await supabase!.from('participant_status_log').insert({
@@ -586,10 +596,10 @@ export function CohorteProvider({ children }: { children: ReactNode }) {
   const valor = useMemo(() => ({ datos, cargando, error, cargar, recargar, guardarEvento, borrarEvento, marcarAsistencia, quitarDeEvento,
     marcarEmpresa, quitarEmpresa, subirEvidencia, borrarEvidencia, abrirEvidencia,
     crearPostulacionExterna, borrarPostulacionExterna, listarEmpleadores, crearColocacion, desactivarColocacion,
-    registrarLlamada, completarLlamada, cancelarLlamada, cambiarEstado, historialDe }),
+    registrarLlamada, completarLlamada, cancelarLlamada, borrarLlamada, cambiarEstado, historialDe }),
     [datos, cargando, error, cargar, recargar, guardarEvento, borrarEvento, marcarAsistencia, quitarDeEvento, marcarEmpresa, quitarEmpresa,
       subirEvidencia, borrarEvidencia, abrirEvidencia, crearPostulacionExterna,
-      borrarPostulacionExterna, listarEmpleadores, crearColocacion, desactivarColocacion, registrarLlamada, completarLlamada, cancelarLlamada, cambiarEstado, historialDe]);
+      borrarPostulacionExterna, listarEmpleadores, crearColocacion, desactivarColocacion, registrarLlamada, completarLlamada, cancelarLlamada, borrarLlamada, cambiarEstado, historialDe]);
   return <Ctx.Provider value={valor}>{children}</Ctx.Provider>;
 }
 

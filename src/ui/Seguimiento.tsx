@@ -3,10 +3,12 @@
  * llamadas y contactos directos (aquí van las observaciones del equipo) e historial de todo lo que le pasó.
  * El historial une lo que ya está en la carga (registro, eventos, postulaciones, colocación, llamadas, estados)
  * con los cambios de `audit_log` (ediciones y borrados, hechos desde el dashboard o desde la plataforma).
- * Nada se borra: inactivar agrega una fila; la persona sigue contando en los acumulados.
+ * Nada se borra: inactivar agrega una fila; la persona sigue contando en los acumulados. Una llamada hecha solo la
+ * borra un super_admin con motivo (D-58).
  */
 import { useEffect, useState } from 'react';
-import { Check, Loader2, Phone, UserX, UserCheck } from 'lucide-react';
+import { Check, Loader2, Phone, Trash2, UserX, UserCheck } from 'lucide-react';
+import { useAuth } from '../lib/auth';
 import { config } from '../lib/config';
 import {
   useCohorte, type Cambio, type CambioEstado, type CanalContacto, type DatosCohorte, type Llamada, type Persona,
@@ -144,11 +146,15 @@ export function BloqueLlamadas({ persona, datos, onNoContinua }: { persona: Pers
   );
 }
 
-/** Una llamada; si está agendada, permite registrar el resultado o cancelarla. */
+/** Una llamada; si está agendada, permite registrar el resultado o cancelarla. Una hecha la borra solo un super_admin con motivo (D-58). */
 export function ItemLlamada({ l, persona, onNoContinua }: { l: Llamada; persona?: string; onNoContinua?: (nota: string) => void }) {
-  const { cancelarLlamada } = useCohorte();
+  const { cancelarLlamada, borrarLlamada } = useCohorte();
+  const { esSuperAdmin } = useAuth();
   const [completando, setCompletando] = useState(false);
   const [cancelando, setCancelando] = useState(false);
+  const [borrando, setBorrando] = useState(false);
+  const [motivo, setMotivo] = useState('');
+  const [ocupado, setOcupado] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const agendada = l.resultado == null;
   return (
@@ -171,6 +177,23 @@ export function ItemLlamada({ l, persona, onNoContinua }: { l: Llamada; persona?
             </span>
           ) : <button type="button" onClick={() => setCancelando(true)} className="text-[11px] font-black uppercase tracking-widest text-slate-400 hover:text-red-600">Cancelar</button>}
         </div>
+      )}
+      {!agendada && esSuperAdmin && (
+        borrando ? (
+          <span className="flex flex-col gap-2 mt-1 text-[11px] font-bold text-red-600">
+            <span>¿Eliminar la llamada? Queda en el historial con el motivo.</span>
+            <input value={motivo} onChange={e => setMotivo(e.target.value)} placeholder="Motivo (p. ej. «se registró a la persona equivocada»)"
+              className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-medium text-slate-700" aria-label="Motivo del borrado" />
+            <span className="flex items-center gap-2">
+              <button type="button" disabled={ocupado || motivo.trim().length < 3}
+                onClick={async () => { setOcupado(true); const e = await borrarLlamada(l.id, motivo); setOcupado(false); setError(e); if (!e) { setBorrando(false); setMotivo(''); } }}
+                className="px-2 py-1 rounded-lg bg-red-600 text-white text-[10px] font-black uppercase disabled:opacity-40">Eliminar</button>
+              <button type="button" onClick={() => { setBorrando(false); setMotivo(''); }} className="text-[10px] font-black uppercase text-slate-400">No</button>
+            </span>
+          </span>
+        ) : (
+          <button type="button" onClick={() => setBorrando(true)} className="mt-1 flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest text-slate-400 hover:text-red-600"><Trash2 size={13} /> Eliminar</button>
+        )
       )}
       <ErrorLinea texto={error} />
       {completando && (

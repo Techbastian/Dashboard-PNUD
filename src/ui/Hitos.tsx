@@ -3,12 +3,16 @@
  * Sin montos. Estados: Cumplido · Activado (pasó el umbral) · En riesgo (fecha a ≤ 30 días o vencida sin llegar al umbral)
  * · En curso · Sin iniciar · Sin fuente aún · Documental (entregable sin cifra, lo marca el equipo en la config).
  * Hitos seguidos con el mismo `grupo` van juntos bajo su título; los cumplidos con fecha pasada se pliegan en «Hitos anteriores».
+ * D-57: si el hito trae `explicacion`, la tarjeta abre un globo con ese texto al pasar el mouse; es enfocable (`tabIndex`),
+ * así que también se abre con el teclado y al tocarla en el celular. Sin `fecha`, el hito no muestra fecha ni días y nunca
+ * queda «En riesgo» (así lo usa FQSD: sin advertencias).
  */
 import { config, type Hito } from '../lib/config';
 import { resolver } from '../lib/ruta';
 import { num } from '../lib/formato';
 import type { PublicStats } from '../lib/usePublicStats';
 import { TarjetaBloque } from './Graficos';
+import { Info } from 'lucide-react';
 
 type Estado = 'cumplido' | 'activado' | 'riesgo' | 'curso' | 'sin-iniciar' | 'sin-fuente' | 'documental';
 const CHIP: Record<Estado, [string, string]> = {
@@ -48,11 +52,16 @@ function TarjetaHito({ e }: { e: EvalHito }) {
   const w = n != null && meta > 0 ? Math.min(100, (n / meta) * 100) : 0;
   const marca = h.umbral ? h.umbral : null;
   const dias = h.fecha ? diasHasta(h.fecha) : null;
+  const idGlobo = h.explicacion ? `hito-${h.numero}-explicacion` : undefined;
   return (
-    <div className="p-5 rounded-[1.5rem] border border-slate-100 bg-white flex flex-col gap-3 min-w-0">
+    <div tabIndex={idGlobo ? 0 : undefined} aria-describedby={idGlobo}
+      className={`group relative p-5 rounded-[1.5rem] border border-slate-100 bg-white flex flex-col gap-3 min-w-0 ${idGlobo ? 'cursor-help outline-none hover:border-brand/30 focus-visible:ring-2 focus-visible:ring-brand/30' : ''}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Hito {h.numero}{h.fecha ? ` · ${fechaCorta(h.fecha)}` : ''}</p>
+          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-1">
+            Hito {h.numero}{h.fecha ? ` · ${fechaCorta(h.fecha)}` : ''}
+            {idGlobo && <Info size={11} className="text-slate-300 group-hover:text-brand" aria-hidden />}
+          </p>
           <p className="text-sm font-black text-slate-800 leading-snug">{h.titulo}</p>
         </div>
         <span className={`shrink-0 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${cls}`}>{txt}</span>
@@ -82,6 +91,13 @@ function TarjetaHito({ e }: { e: EvalHito }) {
         </>
       )}
       {h.ayuda && <p className="text-[10px] font-bold text-slate-400">{h.ayuda}</p>}
+      {idGlobo && (
+        // Debajo de la tarjeta y por encima de las demás: el contenedor no debe llevar overflow-hidden.
+        <div id={idGlobo} role="tooltip"
+          className="pointer-events-none invisible opacity-0 group-hover:visible group-hover:opacity-100 group-focus:visible group-focus:opacity-100 transition-opacity duration-150 absolute left-3 right-3 top-full mt-2 z-30 rounded-xl bg-slate-800 text-white text-[11px] font-medium leading-relaxed p-3 shadow-xl">
+          {h.explicacion}
+        </div>
+      )}
     </div>
   );
 }

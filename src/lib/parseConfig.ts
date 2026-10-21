@@ -58,6 +58,8 @@ export interface Grafico {
 export interface Hito {
   numero: number; titulo: string; fecha?: string; grupo?: string; ayuda?: string;
   meta?: number; valor?: string; umbral?: number; documental?: boolean; cumplido?: boolean;
+  /** D-57: qué mide el hito y cómo se cuenta; se muestra en un globo al pasar el mouse (o enfocar/tocar la tarjeta). */
+  explicacion?: string;
 }
 export interface Pestana {
   id: string; titulo: string;
@@ -287,6 +289,8 @@ function validarHitos(h: unknown): Hito[] {
       if (!x.valor) e('necesita valor (ruta de la función pública)');
     }
     if (x.umbral != null && (typeof x.umbral !== 'number' || x.umbral <= 0 || x.umbral > 100)) e('umbral es un % entre 1 y 100');
-    return { ...x, fecha } as Hito;
+    if (x.explicacion != null && typeof x.explicacion !== 'string') e('explicacion debe ser texto');
+    const explicacion = x.explicacion?.trim() || undefined;
+    return { ...x, fecha, explicacion } as Hito;
   }).sort((a, b) => a.numero - b.numero);
 }

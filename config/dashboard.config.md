@@ -147,7 +147,7 @@ Columnas de ✓ que no son etapas de la ruta. También sirven de filtro (con / s
 participantes:
   marcas:
     - { titulo: Hoja de vida, regla: hv, ayuda: Hoja de vida cargada en la plataforma }
-    - { titulo: Perfilamiento, regla: "documentos:perfilamiento", ayuda: Informe individual de perfilamiento cargado en la Fase Documental }
+    - { titulo: Perfilamiento, regla: "documentos:perfilamiento", despues: Orientación, ayuda: Informe individual de perfilamiento cargado en la Fase Documental }
 ```
 
 ## Secciones del Dashboard

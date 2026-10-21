@@ -15,6 +15,8 @@ interface AuthValor {
   session: Session | null;
   correo: string | null;
   esAdmin: boolean;
+  /** D-50: rol super_admin en admin_whitelist (is_super_admin, A-24). Solo ellos borran eventos. */
+  esSuperAdmin: boolean;
   cargando: boolean;
   enviarEnlace: (correo: string) => Promise<{ error: string | null }>;
   salir: () => Promise<void>;
@@ -36,12 +38,14 @@ function traducir(msg: string): string {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [esAdmin, setEsAdmin] = useState(false);
+  const [esSuperAdmin, setEsSuperAdmin] = useState(false);
   const [cargando, setCargando] = useState(Boolean(supabase));
 
   const verificar = useCallback(async (s: Session | null) => {
-    if (!s || !supabase) { setEsAdmin(false); return; }
-    const { data, error } = await supabase.rpc('is_admin');
-    setEsAdmin(!error && data === true);
+    if (!s || !supabase) { setEsAdmin(false); setEsSuperAdmin(false); return; }
+    const [a, sa] = await Promise.all([supabase.rpc('is_admin'), supabase.rpc('is_super_admin')]);
+    setEsAdmin(!a.error && a.data === true);
+    setEsSuperAdmin(!sa.error && sa.data === true);
   }, []);
 
   useEffect(() => {
@@ -76,10 +80,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase?.auth.signOut();
     setSession(null);
     setEsAdmin(false);
+    setEsSuperAdmin(false);
   }, []);
 
   return (
-    <Ctx.Provider value={{ session, correo: session?.user.email ?? null, esAdmin, cargando, enviarEnlace, salir }}>
+    <Ctx.Provider value={{ session, correo: session?.user.email ?? null, esAdmin, esSuperAdmin, cargando, enviarEnlace, salir }}>
       {children}
     </Ctx.Provider>
   );

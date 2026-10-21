@@ -9,6 +9,7 @@ import { ChevronLeft, ChevronRight, Plus, MapPin, Video, Users, Trash2, Loader2,
 import { config } from '../lib/config';
 import { useCohorte, type Evento, type EstadoAsistencia, type Persona, type TipoEvidencia, type Evidencia } from '../lib/datos';
 import { diaBogota, diaLargo, hora, hhmmBogota, isoBogota, norm, humano } from '../lib/formato';
+import { useAuth } from '../lib/auth';
 import { BarraDatos, Cargando, ErrorDatos, PanelLateral, BloqueFicha, Etiqueta, Pestanas, Vacio, Aviso } from '../ui/Privado';
 
 const OTRO = '__otro';
@@ -200,6 +201,8 @@ function PanelEvento({ evento, onCerrar, onEditar }: { evento: Evento; onCerrar:
   const [ocupado, setOcupado] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirmaBorrar, setConfirmaBorrar] = useState(false);
+  const [motivoBorrar, setMotivoBorrar] = useState('');
+  const { esSuperAdmin } = useAuth();
   if (!datos) return null;
 
   const filas = datos.asistencias.filter(a => a.eventoId === evento.id);
@@ -215,6 +218,7 @@ function PanelEvento({ evento, onCerrar, onEditar }: { evento: Evento; onCerrar:
     const err = await f();
     setOcupado(null);
     if (err) setError(err);
+    return err;
   }
   const marcar = (pid: string, e: EstadoAsistencia) => hacer(pid + e, () => marcarAsistencia(evento.id, pid, e));
 
@@ -311,12 +315,21 @@ function PanelEvento({ evento, onCerrar, onEditar }: { evento: Evento; onCerrar:
         <button type="button" onClick={onEditar} className="text-[11px] font-black uppercase tracking-widest text-brand">Editar evento</button>
         {/cal\.com/i.test(evento.origen ?? '') ? (
           <span className="text-[11px] font-bold text-slate-400">Reserva de Cal.com: se cancela allá</span>
+        ) : !esSuperAdmin ? (
+          // D-50: borrar eventos es solo de super_admin (la base también lo exige: política restrictiva + borrar_evento).
+          <span className="text-[11px] font-bold text-slate-400">Solo un super admin puede eliminar eventos</span>
         ) : confirmaBorrar ? (
-          <span className="flex flex-wrap items-center gap-2 text-[11px] font-bold text-red-600">
-            ¿Eliminar el evento? Se borran {filas.length} registros de asistencia ({n('asistio')} asistió)
-            {impacto.empresas > 0 && <>, {impacto.empresas} empresas</>}{impacto.evidencias > 0 && <> y {impacto.evidencias} evidencias</>}. No se puede deshacer.
-            <button type="button" disabled={!!ocupado} onClick={() => hacer('borrar', () => borrarEvento(evento.id)).then(onCerrar)} className="px-2.5 py-1 rounded-lg bg-red-600 text-white text-[10px] font-black uppercase">Eliminar</button>
-            <button type="button" onClick={() => setConfirmaBorrar(false)} className="text-slate-400 text-[10px] font-black uppercase">No</button>
+          <span className="flex flex-col gap-2 w-full text-[11px] font-bold text-red-600">
+            <span>¿Eliminar el evento? Se borran {filas.length} registros de asistencia ({n('asistio')} asistió)
+            {impacto.empresas > 0 && <>, {impacto.empresas} empresas</>}{impacto.evidencias > 0 && <> y {impacto.evidencias} evidencias</>}. Queda en el historial con el motivo.</span>
+            <input value={motivoBorrar} onChange={e => setMotivoBorrar(e.target.value)} placeholder="Motivo (p. ej. «la sesión nunca se dio»)"
+              className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-medium text-slate-700" aria-label="Motivo del borrado" />
+            <span className="flex items-center gap-2">
+              <button type="button" disabled={!!ocupado || motivoBorrar.trim().length < 3}
+                onClick={async () => { const err = await hacer('borrar', () => borrarEvento(evento.id, motivoBorrar)); if (!err) onCerrar(); }}
+                className="px-2.5 py-1 rounded-lg bg-red-600 text-white text-[10px] font-black uppercase disabled:opacity-40">Eliminar</button>
+              <button type="button" onClick={() => { setConfirmaBorrar(false); setMotivoBorrar(''); }} className="text-slate-400 text-[10px] font-black uppercase">No</button>
+            </span>
           </span>
         ) : (
           <button type="button" onClick={() => setConfirmaBorrar(true)} className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest text-slate-400 hover:text-red-600"><Trash2 size={13} /> Eliminar</button>

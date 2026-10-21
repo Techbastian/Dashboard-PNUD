@@ -12,6 +12,7 @@ import { descargarXlsx, hoja } from '../lib/excel';
 import { config } from '../lib/config';
 import { BarraDatos, Cargando, ErrorDatos, Pestanas, Aviso } from '../ui/Privado';
 import { filasPersonas } from './ParticipantesView';
+import { motivoLabel } from '../ui/Seguimiento';
 
 type Cond = 'cualquiera' | 'si' | 'no';
 const slug = (t: string) => t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -52,6 +53,10 @@ export default function ListadosView() {
             { titulo: 'Género', valor: f => f.p.genero }, { titulo: 'Estado postulación', valor: f => humano(f.p.estado) }, { titulo: 'Registro', valor: f => fecha(f.p.registradaEl) },
             ...etapas.map((e, i) => ({ titulo: e.etapa, valor: (f: typeof elegidas[number]) => (f.r[i] === null ? 'Sin fuente' : f.r[i] ? 'Sí' : 'No') })),
             { titulo: 'Etapa actual', valor: f => (f.actual == null ? '' : etapas[f.actual].etapa) },
+            { titulo: 'Programa', valor: f => (f.baja ? 'Inactiva' : 'Activa') },
+            { titulo: 'Motivo inactivación', valor: f => (f.baja ? motivoLabel(f.baja.motivo) : '') },
+            { titulo: 'Inactiva desde', valor: f => (f.baja ? fecha(f.baja.fechaEfectiva) : '') },
+            { titulo: 'Llamadas', valor: f => datos!.llamadas.filter(l => l.personaId === f.p.id).length },
             ...marcas.map((m, i) => ({ titulo: m.titulo, valor: (f: typeof elegidas[number]) => (f.m[i] === null ? 'Sin fuente' : f.m[i] ? 'Sí' : 'No') })),
             { titulo: 'Hoja de vida (enlace)', valor: f => f.p.hv },
           ],

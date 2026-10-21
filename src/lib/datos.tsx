@@ -62,15 +62,24 @@ export type TipoEvidencia = 'agenda' | 'asistencia' | 'fotografia' | 'otro';
 /** Evidencia de un evento (A-10): archivo en el bucket privado `evidencias-eventos` o enlace. */
 export interface Evidencia { id: string; eventoId: string; tipo: TipoEvidencia; nombre: string | null; ruta: string | null; url: string | null; subidoPor: string | null; fecha: string }
 export interface Pregunta { clave: string; etiqueta: string; tipo: string }
-/** Tarea o pendiente por persona (follow_up_tasks, A-21). Mismos estados que FQSD. */
-export type EstadoTarea = 'abierta' | 'en_progreso' | 'hecha' | 'cancelada';
-export type PrioridadTarea = 'baja' | 'media' | 'alta';
-export interface Tarea {
-  id: string; personaId: string; titulo: string; descripcion: string | null; estado: EstadoTarea; prioridad: PrioridadTarea;
-  venceEl: string | null; creadaPor: string | null; creadaEl: string; resueltaEl: string | null;
+/** Llamada o contacto directo con la persona (participant_contacts, A-25, D-51). Aquí van las observaciones del equipo. */
+export type ResultadoLlamada = 'contesto' | 'no_contesto' | 'buzon_ocupado' | 'numero_errado' | 'llamar_despues' | 'no_continua';
+export type CanalContacto = 'llamada' | 'whatsapp' | 'presencial' | 'correo' | 'otro';
+export type PropositoContacto = 'orientacion' | 'seguimiento' | 'reconvocatoria' | 'verificacion_retencion' | 'otro';
+export interface Llamada {
+  id: string; personaId: string; fecha: string; canal: CanalContacto; proposito: PropositoContacto; resultado: ResultadoLlamada;
+  notas: string | null; opinion: string | null; proximaAccion: string | null; proximaFecha: string | null; registradaPor: string | null;
 }
-/** Conclusión o valoración global por persona (participant_conclusions, una por persona y cohorte). */
-export interface Conclusion { personaId: string; texto: string; actualizadaPor: string | null; actualizadaEl: string }
+/** Cambio de estado activo / inactivo (participant_status_log, A-26, D-52). Solo se agregan filas; el actual es el más reciente. */
+export interface CambioEstado {
+  id: string; personaId: string; estado: 'activo' | 'inactivo'; motivo: string | null; observacion: string | null;
+  fechaEfectiva: string; etapa: string | null; registradoPor: string | null; creadoEl: string;
+}
+/** Un cambio del historial (audit_log, A-27, D-53): dashboard o plataforma. */
+export interface Cambio {
+  id: number; tabla: string; accion: 'insert' | 'update' | 'delete'; campos: string[] | null;
+  antes: Record<string, unknown> | null; despues: Record<string, unknown> | null; motivo: string | null; por: string | null; el: string;
+}
 /** Exclusión de las métricas de la cohorte (dashboard_exclusiones, A-22). La lee también la función pública (v10). */
 export interface Exclusion { tipo: 'persona' | 'colocacion' | 'intermediacion'; refId: string; motivo: string }
 /** Empleador para registrar una colocación: empresa de la plataforma o empleador externo (hiring_employers). */
@@ -100,10 +109,11 @@ export interface DatosCohorte {
   colocaciones: Colocacion[];
   empresas: Empresa[];
   formularios: Formulario[];
-  tareas: Tarea[];
-  conclusiones: Conclusion[];
   /** Exclusiones vigentes de la cohorte (A-22). Las personas excluidas ya no vienen en `personas`. */
   exclusiones: Exclusion[];
+  llamadas: Llamada[];
+  /** Todos los cambios de estado, del más reciente al más antiguo. */
+  estados: CambioEstado[];
   cargadoEl: string;
 }
 
@@ -115,7 +125,8 @@ interface Valor {
   recargar: () => Promise<void>;
   /** Escrituras: devuelven el error en español o null; después recargan lo necesario. */
   guardarEvento: (e: Partial<Evento> & { nombre: string; inicio: string }) => Promise<string | null>;
-  borrarEvento: (id: string) => Promise<string | null>;
+  /** D-50: solo super_admin y con motivo (RPC borrar_evento, A-24); el motivo queda en el historial. */
+  borrarEvento: (id: string, motivo: string) => Promise<string | null>;
   marcarAsistencia: (eventoId: string, personaId: string, estado: EstadoAsistencia) => Promise<string | null>;
   quitarDeEvento: (eventoId: string, personaId: string) => Promise<string | null>;
   marcarEmpresa: (eventoId: string, empresaId: string, estado: AsistenciaEmpresa['estado'], asistentes?: number | null) => Promise<string | null>;
@@ -124,14 +135,16 @@ interface Valor {
   borrarEvidencia: (e: Evidencia) => Promise<string | null>;
   /** URL para abrir una evidencia (firmada por 10 minutos si es archivo). */
   abrirEvidencia: (e: Evidencia) => Promise<string | null>;
-  crearTarea: (t: { personaId: string; titulo: string; descripcion?: string | null; prioridad: PrioridadTarea; venceEl?: string | null }) => Promise<string | null>;
-  cambiarEstadoTarea: (id: string, estado: EstadoTarea) => Promise<string | null>;
-  guardarConclusion: (personaId: string, texto: string) => Promise<string | null>;
   crearPostulacionExterna: (x: { personaId: string; vacante: string; empresa?: string | null; url?: string | null; observaciones?: string | null }) => Promise<string | null>;
   borrarPostulacionExterna: (id: string) => Promise<string | null>;
   /** Empresas de la plataforma + empleadores externos, para elegir el de una colocación (se pide al abrir el formulario). */
   listarEmpleadores: () => Promise<Empleador[]>;
   crearColocacion: (c: NuevaColocacion) => Promise<string | null>;
+  registrarLlamada: (x: Omit<Llamada, 'id' | 'registradaPor' | 'fecha'> & { fecha?: string }) => Promise<string | null>;
+  /** Activo / inactivo (deserción interna). Al inactivar, motivo y observación son obligatorios. */
+  cambiarEstado: (x: { personaId: string; estado: 'activo' | 'inactivo'; motivo?: string | null; observacion?: string | null; fechaEfectiva?: string; etapa?: string | null }) => Promise<string | null>;
+  /** Historial de cambios de una persona (se pide al abrir su ficha; no viene en la carga general). */
+  historialDe: (personaId: string) => Promise<{ cambios: Cambio[]; error: string | null }>;
   /** No se borra: «colocado» es un hecho; se marca terminada con motivo (la retención lee deactivated_at). */
   desactivarColocacion: (id: string, motivo: string) => Promise<string | null>;
 }
@@ -202,7 +215,7 @@ async function cargarTodo(): Promise<DatosCohorte> {
   const apps = (await todas('project_applications', 'id, candidate_id, status, created_at, custom_answers', q => q.eq('cohort_id', COHORTE)))
     .filter(a => !personasFuera.has(String(a.candidate_id ?? '')));
   const idsPersonas = apps.map(a => String(a.candidate_id ?? '')).filter(Boolean);
-  const [cands, matriculas, eventos, colocRaw, postPlat, postExt, enlaces, vacRaw, socio, tareasRaw, conclRaw] = await Promise.all([
+  const [cands, matriculas, eventos, colocRaw, postPlat, postExt, enlaces, vacRaw, socio, llamRaw, estRaw] = await Promise.all([
     porIds('candidates', 'id, first_name, last_name, document_type, document_number, email, phone, city, gender, birth_date, cv_url', 'id', idsPersonas),
     todas('program_enrollments', 'id, candidate_id, status, enrolled_at', q => q.eq('cohort_id', COHORTE)),
     todas('events', 'id, nombre, tipo, fase, modalidad, ubicacion, fecha_hora_inicio, fecha_hora_fin, descripcion, toma_asistencia, external_source, meeting_link', q => q.eq('cohort_id', COHORTE).order('fecha_hora_inicio')),
@@ -213,8 +226,8 @@ async function cargarTodo(): Promise<DatosCohorte> {
     todas('jobs', 'id, company_id, title, total_positions, salary_range, modality, employment_type, required_education_level, required_experience_months, status, is_published, visibility, cities', q => q.eq('cohort_id', COHORTE)),
     // Campo «Género» del registro de la plataforma (D-42); candidates.gender queda de respaldo para registros antiguos.
     porIds('socio_demographic_data', 'id, candidate_id, gender_identity', 'candidate_id', idsPersonas),
-    todas('follow_up_tasks', 'id, candidate_id, titulo, descripcion, estado, prioridad, vence_el, creado_por, created_at, resuelto_el', q => q.eq('cohort_id', COHORTE)),
-    todas('participant_conclusions', 'candidate_id, conclusion, actualizado_por, actualizado_en', q => q.eq('cohort_id', COHORTE)),
+    todas('participant_contacts', 'id, candidate_id, fecha, canal, proposito, resultado, notas, opinion, proxima_accion, proxima_fecha, registrado_por', q => q.eq('cohort_id', COHORTE).order('fecha', { ascending: false })),
+    todas('participant_status_log', 'id, candidate_id, estado, motivo, observacion, fecha_efectiva, etapa, registrado_por, created_at', q => q.eq('cohort_id', COHORTE).order('fecha_efectiva', { ascending: false }).order('created_at', { ascending: false })),
   ]);
   const idsEventos = eventos.map(e => String(e.id));
   const [asistRaw, asistEmpRaw, evidRaw] = await Promise.all([
@@ -306,15 +319,16 @@ async function cargarTodo(): Promise<DatosCohorte> {
       activa: !c.deactivated_at, duracionMeses: c.duration_months == null ? null : Number(c.duration_months),
       excluida: colocFuera.get(String(c.id)) ?? null,
     })),
-    tareas: tareasRaw.filter(t => !personasFuera.has(String(t.candidate_id))).map(t => ({
-      id: String(t.id), personaId: String(t.candidate_id), titulo: String(t.titulo ?? ''), descripcion: s(t.descripcion),
-      estado: (String(t.estado ?? 'abierta') as EstadoTarea), prioridad: (String(t.prioridad ?? 'media') as PrioridadTarea),
-      venceEl: s(t.vence_el), creadaPor: s(t.creado_por), creadaEl: String(t.created_at), resueltaEl: s(t.resuelto_el),
-    })),
-    conclusiones: conclRaw.filter(c => !personasFuera.has(String(c.candidate_id)) && s(c.conclusion)).map(c => ({
-      personaId: String(c.candidate_id), texto: String(c.conclusion), actualizadaPor: s(c.actualizado_por), actualizadaEl: String(c.actualizado_en),
-    })),
     exclusiones,
+    llamadas: llamRaw.filter(l => !personasFuera.has(String(l.candidate_id))).map(l => ({
+      id: String(l.id), personaId: String(l.candidate_id), fecha: String(l.fecha), canal: String(l.canal) as CanalContacto,
+      proposito: String(l.proposito) as PropositoContacto, resultado: String(l.resultado) as ResultadoLlamada, notas: s(l.notas), opinion: s(l.opinion),
+      proximaAccion: s(l.proxima_accion), proximaFecha: s(l.proxima_fecha), registradaPor: s(l.registrado_por),
+    })),
+    estados: estRaw.filter(e => !personasFuera.has(String(e.candidate_id))).map(e => ({
+      id: String(e.id), personaId: String(e.candidate_id), estado: String(e.estado) as 'activo' | 'inactivo', motivo: s(e.motivo),
+      observacion: s(e.observacion), fechaEfectiva: String(e.fecha_efectiva), etapa: s(e.etapa), registradoPor: s(e.registrado_por), creadoEl: String(e.created_at),
+    })),
     cargadoEl: new Date().toISOString(),
   };
 }
@@ -362,15 +376,18 @@ export function CohorteProvider({ children }: { children: ReactNode }) {
     return mensaje(error);
   }, [recargar]);
 
-  const borrarEvento: Valor['borrarEvento'] = useCallback(async (id) => {
+  const borrarEvento: Valor['borrarEvento'] = useCallback(async (id, motivo) => {
     const ev = datos?.eventos.find(e => e.id === id);
     // Una reserva de Cal.com se cancela allá: si se borra aquí, el webhook la vuelve a crear en la siguiente novedad.
     if (ev && /cal\.com/i.test(ev.origen ?? '')) return 'Este evento viene de Cal.com: cancélalo allá.';
-    // La base borra en cascada asistencias, empresas y filas de evidencias; los ARCHIVOS del bucket no: se quitan aquí.
+    if (motivo.trim().length < 3) return 'Escribe el motivo del borrado.';
+    // La base borra en cascada asistencias, empresas y filas de evidencias (el historial guarda todo con el motivo);
+    // los ARCHIVOS del bucket no: se quitan aquí.
     const rutas = (datos?.evidencias ?? []).filter(x => x.eventoId === id && x.ruta).map(x => x.ruta!);
-    const { error } = await supabase!.from('events').delete().eq('id', id);
+    const { error } = await supabase!.rpc('borrar_evento', { p_evento: id, p_motivo: motivo.trim() });
     if (!error && rutas.length) await supabase!.storage.from('evidencias-eventos').remove(rutas);
     if (!error) await recargar();
+    if (error && /PGRST202|Could not find the function/i.test(`${error.code ?? ''} ${error.message}`)) return 'Falta aplicar en la base la función borrar_evento (A-24).';
     return mensaje(error);
   }, [datos, recargar]);
 
@@ -442,34 +459,41 @@ export function CohorteProvider({ children }: { children: ReactNode }) {
     return data?.signedUrl ?? null;
   }, []);
 
-  // ─── Tareas y conclusión por persona (FQSD ParticipantTasks) ───────────────────────────────────────────────────
-  const crearTarea: Valor['crearTarea'] = useCallback(async (t) => {
-    if (!t.titulo.trim()) return 'Escribe el título de la tarea.';
-    const p = datos?.personas.find(x => x.id === t.personaId);
-    const { error } = await supabase!.from('follow_up_tasks').insert({
-      cohort_id: COHORTE, candidate_id: t.personaId, enrollment_id: p?.matricula?.id ?? null, titulo: t.titulo.trim(),
-      descripcion: t.descripcion?.trim() || null, prioridad: t.prioridad, vence_el: t.venceEl || null, estado: 'abierta', creado_por: correo,
+  // ─── Llamadas, estado e historial (D-51..D-53) ────────────────────────────────────────────────────────────────
+  const registrarLlamada: Valor['registrarLlamada'] = useCallback(async (x) => {
+    const { error } = await supabase!.from('participant_contacts').insert({
+      cohort_id: COHORTE, candidate_id: x.personaId, fecha: x.fecha ?? new Date().toISOString(), canal: x.canal, proposito: x.proposito,
+      resultado: x.resultado, notas: x.notas?.trim() || null, opinion: x.opinion?.trim() || null,
+      proxima_accion: x.proximaAccion?.trim() || null, proxima_fecha: x.proximaFecha || null, registrado_por: correo,
     });
     if (!error) await recargar();
     return mensaje(error);
-  }, [datos, correo, recargar]);
+  }, [correo, recargar]);
 
-  const cambiarEstadoTarea: Valor['cambiarEstadoTarea'] = useCallback(async (id, estado) => {
-    const { error } = await supabase!.from('follow_up_tasks')
-      .update({ estado, resuelto_el: estado === 'hecha' ? new Date().toISOString() : null }).eq('id', id);
+  const cambiarEstado: Valor['cambiarEstado'] = useCallback(async (x) => {
+    if (x.estado === 'inactivo' && (!x.motivo?.trim() || !x.observacion?.trim())) return 'Para inactivar, elige el motivo y escribe la observación.';
+    const { error } = await supabase!.from('participant_status_log').insert({
+      cohort_id: COHORTE, candidate_id: x.personaId, estado: x.estado, motivo: x.motivo?.trim() || null,
+      observacion: x.observacion?.trim() || null, fecha_efectiva: x.fechaEfectiva || new Date().toISOString().slice(0, 10),
+      etapa: x.etapa ?? null, registrado_por: correo,
+    });
     if (!error) await recargar();
     return mensaje(error);
-  }, [recargar]);
+  }, [correo, recargar]);
 
-  const guardarConclusion: Valor['guardarConclusion'] = useCallback(async (personaId, texto) => {
-    const p = datos?.personas.find(x => x.id === personaId);
-    const { error } = await supabase!.from('participant_conclusions').upsert({
-      cohort_id: COHORTE, candidate_id: personaId, enrollment_id: p?.matricula?.id ?? null, conclusion: texto.trim() || null,
-      actualizado_por: correo, actualizado_en: new Date().toISOString(),
-    }, { onConflict: 'cohort_id,candidate_id' });
-    if (!error) await recargar();
-    return mensaje(error);
-  }, [datos, correo, recargar]);
+  const historialDe: Valor['historialDe'] = useCallback(async (personaId) => {
+    const { data, error } = await supabase!.from('audit_log')
+      .select('id, tabla, accion, campos, antes, despues, motivo, cambio_por, creado_en, cohort_id')
+      .eq('candidate_id', personaId).order('creado_en', { ascending: false }).limit(300);
+    if (error) return { cambios: [], error: mensaje(error) };
+    const cambios = ((data ?? []) as Fila[])
+      // de esta cohorte, o sin cohorte (datos de contacto, postulaciones a vacantes, colocaciones)
+      .filter(r => r.cohort_id == null || String(r.cohort_id) === COHORTE)
+      .map(r => ({ id: Number(r.id), tabla: String(r.tabla), accion: String(r.accion) as Cambio['accion'], campos: (r.campos as string[] | null) ?? null,
+        antes: (r.antes as Record<string, unknown> | null) ?? null, despues: (r.despues as Record<string, unknown> | null) ?? null,
+        motivo: s(r.motivo), por: s(r.cambio_por), el: String(r.creado_en) }));
+    return { cambios, error: null };
+  }, []);
 
   // ─── Intermediación y colocación (FQSD colocaciones.ts): mismas tablas que la plataforma ────────────────────────
   const crearPostulacionExterna: Valor['crearPostulacionExterna'] = useCallback(async (x) => {
@@ -538,11 +562,12 @@ export function CohorteProvider({ children }: { children: ReactNode }) {
   }, [correo, recargar]);
 
   const valor = useMemo(() => ({ datos, cargando, error, cargar, recargar, guardarEvento, borrarEvento, marcarAsistencia, quitarDeEvento,
-    marcarEmpresa, quitarEmpresa, subirEvidencia, borrarEvidencia, abrirEvidencia, crearTarea, cambiarEstadoTarea, guardarConclusion,
-    crearPostulacionExterna, borrarPostulacionExterna, listarEmpleadores, crearColocacion, desactivarColocacion }),
+    marcarEmpresa, quitarEmpresa, subirEvidencia, borrarEvidencia, abrirEvidencia,
+    crearPostulacionExterna, borrarPostulacionExterna, listarEmpleadores, crearColocacion, desactivarColocacion,
+    registrarLlamada, cambiarEstado, historialDe }),
     [datos, cargando, error, cargar, recargar, guardarEvento, borrarEvento, marcarAsistencia, quitarDeEvento, marcarEmpresa, quitarEmpresa,
-      subirEvidencia, borrarEvidencia, abrirEvidencia, crearTarea, cambiarEstadoTarea, guardarConclusion, crearPostulacionExterna,
-      borrarPostulacionExterna, listarEmpleadores, crearColocacion, desactivarColocacion]);
+      subirEvidencia, borrarEvidencia, abrirEvidencia, crearPostulacionExterna,
+      borrarPostulacionExterna, listarEmpleadores, crearColocacion, desactivarColocacion, registrarLlamada, cambiarEstado, historialDe]);
   return <Ctx.Provider value={valor}>{children}</Ctx.Provider>;
 }
 
@@ -552,4 +577,11 @@ export function useCohorte(): Valor {
   if (!v) throw new Error('useCohorte fuera de <CohorteProvider>');
   useEffect(() => { v.cargar(); }, [v]);
   return v;
+}
+
+/** Estado actual de cada persona (D-52): la fila más reciente; sin filas = activa. */
+export function estadoActual(d: DatosCohorte): Map<string, CambioEstado> {
+  const m = new Map<string, CambioEstado>();
+  for (const e of d.estados) if (!m.has(e.personaId)) m.set(e.personaId, e); // vienen del más reciente al más antiguo
+  return m;
 }

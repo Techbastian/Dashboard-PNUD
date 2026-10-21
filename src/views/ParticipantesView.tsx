@@ -4,31 +4,36 @@
  * datos, formularios, documentos, asistencia, postulaciones y colocación. Privada (PII).
  * D-44: columnas de `participantes.marcas` (p. ej. hoja de vida) y filtros por fase («llegó a» / «está en»),
  * por fecha de registro y por marca.
+ * D-51..D-53: estado activo/inactivo (deserción interna sobre todas las personas), llamadas e historial en la ficha.
  */
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { ExternalLink, FileCheck2, FileX2 } from 'lucide-react';
-import { useCohorte, type Persona, type DatosCohorte } from '../lib/datos';
+import { useCohorte, estadoActual, type Persona, type DatosCohorte, type CambioEstado } from '../lib/datos';
 import { etapasConRegla, evaluar, indexar, etapaActual, type Resultado } from '../lib/etapas';
 import { fecha, diaBogota, diaLargo, hora, humano, norm, num } from '../lib/formato';
 import { config } from '../lib/config';
-import { TareasPersona, ConclusionPersona, FormPostulacionExterna, BorrarPostulacion, FormColocacion, TerminarColocacion, NoCuenta } from '../ui/Gestion';
+import { FormPostulacionExterna, BorrarPostulacion, FormColocacion, TerminarColocacion, NoCuenta } from '../ui/Gestion';
 import { BarraDatos, Buscador, Cargando, ErrorDatos, PanelLateral, BloqueFicha, MarcaEtapa, Etiqueta, Pestanas, Vacio } from '../ui/Privado';
 import { KPICard } from '../ui/Comunes';
+import { BloqueEstado, BloqueLlamadas, BloqueHistorial, motivoLabel } from '../ui/Seguimiento';
 
 /** `r` = etapas de la ruta; `m` = marcas de la config (D-44); `dia` = día de registro en Bogotá (YYYY-MM-DD). */
-type Fila = { p: Persona; r: Resultado[]; actual: number | null; m: Resultado[]; dia: string | null };
+type Fila = { p: Persona; r: Resultado[]; actual: number | null; m: Resultado[]; dia: string | null; baja: CambioEstado | null };
 type Cond = 'todas' | 'si' | 'no';
 
 export function filasPersonas(d: DatosCohorte): Fila[] {
   const etapas = etapasConRegla();
   const ix = indexar(d);
+  const est = estadoActual(d);
   return d.personas.map(p => {
     const r = etapas.map(e => evaluar(e.regla, p, d, ix));
     const m = config.participantes.marcas.map(x => evaluar(x.regla, p, d, ix));
-    return { p, r, actual: etapaActual(r), m, dia: p.registradaEl ? diaBogota(p.registradaEl) : null };
+    const e = est.get(p.id);
+    return { p, r, actual: etapaActual(r), m, dia: p.registradaEl ? diaBogota(p.registradaEl) : null, baja: e?.estado === 'inactivo' ? e : null };
   });
 }
 
+const COLS: Record<number, string> = { 5: 'xl:grid-cols-5', 6: 'xl:grid-cols-6', 7: 'xl:grid-cols-7' };
 const CAMPO = 'bg-white border border-slate-100 rounded-2xl px-4 py-2.5 text-xs font-bold text-slate-600';
 
 export default function ParticipantesView() {
@@ -38,6 +43,7 @@ export default function ParticipantesView() {
   const [etapa, setEtapa] = useState<string>('todas');
   const [modo, setModo] = useState<'llego' | 'esta'>('llego');
   const [estado, setEstado] = useState('todos');
+  const [actividad, setActividad] = useState<'todas' | 'activas' | 'inactivas'>('todas');
   const [desde, setDesde] = useState('');
   const [hasta, setHasta] = useState('');
   const [conds, setConds] = useState<Cond[]>(() => marcas.map(() => 'todas'));
@@ -52,21 +58,26 @@ export default function ParticipantesView() {
   // Todos los filtros menos la fase: de aquí salen las cifras y los conteos de cada pestaña.
   const base = filas.filter(f =>
     (estado === 'todos' || (f.p.estado ?? 'sin_estado') === estado) &&
+    (actividad === 'todas' || (actividad === 'inactivas') === (f.baja != null)) &&
     (!desde || (f.dia != null && f.dia >= desde)) && (!hasta || (f.dia != null && f.dia <= hasta)) &&
     conds.every((c, i) => c === 'todas' || (c === 'si' ? f.m[i] === true : f.m[i] === false)) &&
     (!q.trim() || [f.p.nombre, f.p.documento, f.p.correo, f.p.celular].some(v => norm(v).includes(norm(q)))));
   const enFase = (f: Fila, i: number) => (modo === 'llego' ? f.r[i] === true : f.actual === i);
   const visibles = etapa === 'todas' ? base : base.filter(f => enFase(f, Number(etapa)));
-  const filtrando = Boolean(q.trim() || estado !== 'todos' || desde || hasta || conds.some(c => c !== 'todas'));
-  const limpiar = () => { setQ(''); setEstado('todos'); setDesde(''); setHasta(''); setConds(marcas.map(() => 'todas')); };
+  const filtrando = Boolean(q.trim() || estado !== 'todos' || actividad !== 'todas' || desde || hasta || conds.some(c => c !== 'todas'));
+  const limpiar = () => { setQ(''); setEstado('todos'); setActividad('todas'); setDesde(''); setHasta(''); setConds(marcas.map(() => 'todas')); };
   const fila = filas.find(f => f.p.id === abierta) ?? null;
+  // D-52: deserción en general = inactivas / todas las personas de la cohorte (sin filtros); sigue contando en los acumulados.
+  const inactivas = filas.filter(f => f.baja).length;
+  const desercion = filas.length ? Math.round((inactivas / filas.length) * 1000) / 10 : 0;
 
   return (
     <div className={`space-y-6 ${cargando ? 'opacity-80' : ''}`}>
       <BarraDatos />
 
-      <div className={`grid grid-cols-2 md:grid-cols-3 ${etapas.length >= 5 ? 'xl:grid-cols-6' : 'xl:grid-cols-5'} gap-4`}>
+      <div className={`grid grid-cols-2 md:grid-cols-3 ${COLS[Math.min(etapas.length + 2, 7)] ?? 'xl:grid-cols-5'} gap-4`}>
         <KPICard label="Personas" value={num(base.length)} color="text-slate-800" />
+        <KPICard label={`Inactivas · ${desercion.toLocaleString('es-CO')} %`} value={num(inactivas)} color="text-red-600" />
         {etapas.map((e, i) => {
           const sinFuente = filas.length > 0 && filas.every(f => f.r[i] === null);
           return <KPICard key={e.etapa} label={e.etapa} value={sinFuente ? null : num(base.filter(f => f.r[i] === true).length)} color="text-brand" />;
@@ -78,6 +89,11 @@ export default function ParticipantesView() {
         <select value={estado} onChange={e => setEstado(e.target.value)} aria-label="Estado de la postulación" className={CAMPO}>
           <option value="todos">Todos los estados</option>
           {estados.map(s => <option key={s} value={s}>{humano(s)}</option>)}
+        </select>
+        <select value={actividad} onChange={e => setActividad(e.target.value as typeof actividad)} aria-label="Activas o inactivas" className={CAMPO}>
+          <option value="todas">Activas e inactivas</option>
+          <option value="activas">Solo activas</option>
+          <option value="inactivas">Solo inactivas</option>
         </select>
         {marcas.map((m, i) => (
           <select key={m.titulo} value={conds[i]} aria-label={m.titulo} className={CAMPO}
@@ -117,18 +133,22 @@ export default function ParticipantesView() {
               <tr>
                 <th className="px-6 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest sticky left-0 bg-gray-50">Persona</th>
                 <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Estado</th>
+                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Programa</th>
                 {marcas.map(m => <th key={m.titulo} title={m.ayuda} className="px-3 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">{m.titulo}</th>)}
                 {etapas.map(e => <th key={e.etapa} className="px-3 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">{e.etapa}</th>)}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {visibles.map(f => (
-                <tr key={f.p.id} onClick={() => setAbierta(f.p.id)} className="hover:bg-gray-50/60 cursor-pointer">
+                <tr key={f.p.id} onClick={() => setAbierta(f.p.id)} className={`hover:bg-gray-50/60 cursor-pointer ${f.baja ? 'opacity-55' : ''}`}>
                   <td className="px-6 py-3 sticky left-0 bg-white">
                     <p className="text-sm font-bold text-slate-800">{f.p.nombre}</p>
                     <p className="text-[11px] text-slate-400">{f.p.documento ?? '—'} · {f.p.correo ?? 'sin correo'} · registro {fecha(f.dia)}</p>
                   </td>
                   <td className="px-4 py-3"><Etiqueta>{humano(f.p.estado)}</Etiqueta></td>
+                  <td className="px-4 py-3" title={f.baja ? `${motivoLabel(f.baja.motivo)} · ${fecha(f.baja.fechaEfectiva)}` : undefined}>
+                    {f.baja ? <Etiqueta tono="red">Inactiva</Etiqueta> : <Etiqueta tono="emerald">Activa</Etiqueta>}
+                  </td>
                   {f.m.map((v, i) => <td key={`m${i}`} className="px-3 py-3 text-center"><MarcaEtapa v={v} /></td>)}
                   {f.r.map((v, i) => <td key={i} className="px-3 py-3 text-center"><MarcaEtapa v={v} /></td>)}
                 </tr>
@@ -147,6 +167,8 @@ export default function ParticipantesView() {
 function Ficha({ f, datos, onCerrar }: { f: Fila; datos: DatosCohorte; onCerrar: () => void }) {
   const { p } = f;
   const [registrando, setRegistrando] = useState<'postulacion' | 'colocacion' | null>(null);
+  const [inactivarCon, setInactivarCon] = useState<string | null>(null);
+  const usado = useCallback(() => setInactivarCon(null), []);
   const etapas = etapasConRegla();
   const asist = datos.asistencias.filter(a => a.personaId === p.id)
     .map(a => ({ a, e: datos.eventos.find(e => e.id === a.eventoId) })).filter(x => x.e)
@@ -182,6 +204,9 @@ function Ficha({ f, datos, onCerrar }: { f: Fila; datos: DatosCohorte; onCerrar:
           </ul>
         )}
       </BloqueFicha>
+
+      <BloqueEstado persona={p} datos={datos} etapa={f.actual != null ? etapas[f.actual]?.etapa ?? null : null} inactivarCon={inactivarCon} onInactivarUsado={usado} />
+      <BloqueLlamadas persona={p} datos={datos} onNoContinua={nota => setInactivarCon(nota)} />
 
       <BloqueFicha titulo="Datos de contacto">
         <dl className="grid grid-cols-2 gap-3">
@@ -281,13 +306,7 @@ function Ficha({ f, datos, onCerrar }: { f: Fila; datos: DatosCohorte; onCerrar:
         </div>
       </BloqueFicha>
 
-      <BloqueFicha titulo={`Tareas (${datos.tareas.filter(t => t.personaId === p.id && (t.estado === 'abierta' || t.estado === 'en_progreso')).length} abiertas)`}>
-        <TareasPersona persona={p} />
-      </BloqueFicha>
-
-      <BloqueFicha titulo="Conclusión del equipo">
-        <ConclusionPersona persona={p} />
-      </BloqueFicha>
+      <BloqueHistorial persona={p} datos={datos} />
     </PanelLateral>
   );
 }

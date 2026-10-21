@@ -83,7 +83,8 @@ export interface DashboardConfig {
   metas: Meta[];
   fases: Record<string, string>;
   embudo: Etapa[];
-  participantes: { marcas: Marca[] };
+  /** D-44 marcas; D-52 motivos de inactivación (deserción interna). */
+  participantes: { marcas: Marca[]; motivos: Motivo[] };
   catalogo: TipoEvento[];
   distribuciones: Record<string, Distribucion[]>;
   secciones: string[];
@@ -147,7 +148,16 @@ function validarUniones(u: unknown, embudo: Etapa[] | undefined): Record<string,
   return out;
 }
 
-function validarParticipantes(p: unknown): { marcas: Marca[] } {
+/** Motivo de inactivación (D-52). `id` va a participant_status_log.motivo. */
+export interface Motivo { id: string; label: string }
+export const MOTIVOS_POR_DEFECTO: Motivo[] = [
+  { id: 'no_contactable', label: 'No contactable' }, { id: 'consiguio_empleo', label: 'Consiguió empleo' },
+  { id: 'tiempo_horario', label: 'Tiempo u horario' }, { id: 'razones_personales', label: 'Razones personales o de salud' },
+  { id: 'cambio_ciudad', label: 'Cambio de ciudad' }, { id: 'perdio_interes', label: 'Perdió interés' },
+  { id: 'no_cumple_requisitos', label: 'No cumple requisitos' }, { id: 'otro', label: 'Otro' },
+];
+
+function validarParticipantes(p: unknown): { marcas: Marca[]; motivos: Motivo[] } {
   const err = (m: string): never => { throw new Error(`dashboard.config.md: ${m}`); };
   const marcas = ((p as { marcas?: unknown } | undefined)?.marcas ?? []) as Partial<Marca>[];
   if (!Array.isArray(marcas)) err('participantes.marcas debe ser una lista');
@@ -157,7 +167,19 @@ function validarParticipantes(p: unknown): { marcas: Marca[] } {
       if (!REGLA_MARCA.test(m.regla!.trim())) err(`participantes.marcas[${i}]: regla «${m.regla}» no existe`);
       return { titulo: m.titulo!, regla: m.regla!.trim(), ayuda: m.ayuda };
     }),
+    motivos: validarMotivos((p as { motivos?: unknown } | undefined)?.motivos),
   };
+}
+
+function validarMotivos(m: unknown): Motivo[] {
+  const err = (x: string): never => { throw new Error(`dashboard.config.md: ${x}`); };
+  if (m == null) return MOTIVOS_POR_DEFECTO;
+  if (!Array.isArray(m) || m.length === 0) err('participantes.motivos debe ser una lista con al menos un motivo');
+  return (m as Partial<Motivo>[]).map((x, i) => {
+    if (!x?.id || !/^[a-z0-9_]{1,40}$/.test(String(x.id))) err(`participantes.motivos[${i}].id: minúsculas, números y _ (máx. 40)`);
+    if (!x.label) err(`participantes.motivos[${i}] necesita label`);
+    return { id: String(x.id), label: String(x.label) };
+  });
 }
 
 const TIPOS_PREGUNTA = ['opcion', 'escala', 'multiple', 'monto', 'numero', 'rango', 'razon', 'alguna'];

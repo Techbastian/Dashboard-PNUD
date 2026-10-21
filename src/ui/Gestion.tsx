@@ -1,23 +1,22 @@
 /**
- * Gestión por persona (portado de FQSD, plantilla 2.6): tareas y conclusión de la ficha, y registrar intermediación
- * (postulación externa) y colocación. Escriben en las MISMAS tablas que la plataforma (follow_up_tasks,
- * participant_conclusions, participant_vacancy_applications, placements, hiring_employers), así que la plataforma y
+ * Gestión por persona (portado de FQSD, plantilla 2.6): registrar intermediación
+ * (postulación externa) y colocación. Escriben en las MISMAS tablas que la plataforma (
+ * participant_vacancy_applications, placements, hiring_employers), así que la plataforma y
  * la función pública los ven sin sincronizar nada. Todo solo para el equipo (RLS is_admin).
  * Sin diálogos del navegador: confirmaciones y errores en línea.
  */
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
-import { Check, Loader2, Plus, Trash2 } from 'lucide-react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Check, Loader2, Trash2 } from 'lucide-react';
 import {
   useCohorte, DURACIONES, EXPERIENCIA, MODALIDADES,
-  type Colocacion, type Empleador, type EstadoTarea, type Persona, type Postulacion, type PrioridadTarea,
+  type Colocacion, type Empleador, type Persona, type Postulacion,
 } from '../lib/datos';
-import { fecha, fechaHora, norm } from '../lib/formato';
+import { norm } from '../lib/formato';
 import { Etiqueta } from './Privado';
 
 export const campo = 'w-full bg-slate-50 rounded-xl px-4 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-brand/20';
 export const etiquetaCampo = 'block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5';
 const boton = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-brand text-white text-[10px] font-black uppercase tracking-widest disabled:opacity-50';
-const enlace = 'inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest text-brand';
 
 function ErrorLinea({ texto }: { texto: string | null }) {
   return texto ? <p className="text-xs font-bold text-red-600" role="alert">{texto}</p> : null;
@@ -34,115 +33,6 @@ function useEscritura() {
     if (e) setError(e); else ok?.();
   }
   return { ocupado, error, correr };
-}
-
-// ─── Tareas ─────────────────────────────────────────────────────────────────────────────────────────────────────
-const ESTADOS: { k: EstadoTarea; label: string; tono: 'amber' | 'brand' | 'emerald' | 'slate' }[] = [
-  { k: 'abierta', label: 'Abierta', tono: 'amber' }, { k: 'en_progreso', label: 'En curso', tono: 'brand' },
-  { k: 'hecha', label: 'Hecha', tono: 'emerald' }, { k: 'cancelada', label: 'Cancelada', tono: 'slate' },
-];
-const PRIORIDADES: PrioridadTarea[] = ['baja', 'media', 'alta'];
-
-export function TareasPersona({ persona }: { persona: Persona }) {
-  const { datos, crearTarea, cambiarEstadoTarea } = useCohorte();
-  const [abierto, setAbierto] = useState(false);
-  const [titulo, setTitulo] = useState('');
-  const [descripcion, setDescripcion] = useState('');
-  const [prioridad, setPrioridad] = useState<PrioridadTarea>('media');
-  const [vence, setVence] = useState('');
-  const { ocupado, error, correr } = useEscritura();
-  const tareas = (datos?.tareas ?? []).filter(t => t.personaId === persona.id)
-    .sort((a, b) => Number(a.estado === 'hecha' || a.estado === 'cancelada') - Number(b.estado === 'hecha' || b.estado === 'cancelada')
-      || String(a.venceEl ?? '9999').localeCompare(String(b.venceEl ?? '9999')));
-
-  function enviar(e: FormEvent) {
-    e.preventDefault();
-    void correr(() => crearTarea({ personaId: persona.id, titulo, descripcion, prioridad, venceEl: vence || null }), () => {
-      setTitulo(''); setDescripcion(''); setVence(''); setPrioridad('media'); setAbierto(false);
-    });
-  }
-
-  return (
-    <div className="space-y-3">
-      {tareas.length === 0 && !abierto && <p className="text-xs text-slate-400 font-bold">Sin tareas.</p>}
-      <ul className="space-y-2">
-        {tareas.map(t => {
-          const cerrada = t.estado === 'hecha' || t.estado === 'cancelada';
-          const vencida = !cerrada && t.venceEl && t.venceEl < new Date().toISOString().slice(0, 10);
-          return (
-            <li key={t.id} className={`rounded-xl border border-slate-100 p-3 ${cerrada ? 'opacity-60' : ''}`}>
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className={`text-sm font-bold text-slate-800 ${t.estado === 'hecha' ? 'line-through' : ''}`}>{t.titulo}</p>
-                  {t.descripcion && <p className="text-xs text-slate-500 mt-0.5 whitespace-pre-line">{t.descripcion}</p>}
-                  <p className="text-[11px] text-slate-400 mt-1">
-                    Prioridad {t.prioridad}{t.venceEl && <> · vence {fecha(t.venceEl)}</>}{vencida && <span className="text-red-600 font-bold"> · vencida</span>}
-                    {t.creadaPor && <> · {t.creadaPor}</>}
-                  </p>
-                </div>
-                <select aria-label={`Estado de ${t.titulo}`} value={t.estado} disabled={ocupado}
-                  onChange={e => void correr(() => cambiarEstadoTarea(t.id, e.target.value as EstadoTarea))}
-                  className="shrink-0 bg-slate-50 rounded-lg px-2 py-1 text-[11px] font-bold text-slate-600 outline-none">
-                  {ESTADOS.map(s => <option key={s.k} value={s.k}>{s.label}</option>)}
-                </select>
-              </div>
-            </li>
-          );
-        })}
-      </ul>
-      {abierto ? (
-        <form onSubmit={enviar} className="space-y-3 rounded-xl bg-slate-50/60 p-3">
-          <div><label className={etiquetaCampo} htmlFor="t-titulo">Tarea</label>
-            <input id="t-titulo" required value={titulo} onChange={e => setTitulo(e.target.value)} placeholder="Ej. Volver a llamar, pedir documento…" className={campo} /></div>
-          <div><label className={etiquetaCampo} htmlFor="t-desc">Detalle</label>
-            <textarea id="t-desc" rows={2} value={descripcion} onChange={e => setDescripcion(e.target.value)} className={campo} /></div>
-          <div className="grid grid-cols-2 gap-3">
-            <div><label className={etiquetaCampo} htmlFor="t-prio">Prioridad</label>
-              <select id="t-prio" value={prioridad} onChange={e => setPrioridad(e.target.value as PrioridadTarea)} className={campo}>
-                {PRIORIDADES.map(p => <option key={p} value={p}>{p}</option>)}
-              </select></div>
-            <div><label className={etiquetaCampo} htmlFor="t-vence">Vence</label>
-              <input id="t-vence" type="date" value={vence} onChange={e => setVence(e.target.value)} className={campo} /></div>
-          </div>
-          <ErrorLinea texto={error} />
-          <div className="flex items-center gap-3">
-            <button type="submit" disabled={ocupado} className={boton}>{ocupado ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />} Guardar tarea</button>
-            <button type="button" onClick={() => setAbierto(false)} className="text-[10px] font-black uppercase text-slate-400">Cancelar</button>
-          </div>
-        </form>
-      ) : (
-        <>
-          <ErrorLinea texto={error} />
-          <button type="button" onClick={() => setAbierto(true)} className={enlace}><Plus size={13} /> Nueva tarea</button>
-        </>
-      )}
-    </div>
-  );
-}
-
-// ─── Conclusión ─────────────────────────────────────────────────────────────────────────────────────────────────
-export function ConclusionPersona({ persona }: { persona: Persona }) {
-  const { datos, guardarConclusion } = useCohorte();
-  const actual = datos?.conclusiones.find(c => c.personaId === persona.id) ?? null;
-  const [texto, setTexto] = useState(actual?.texto ?? '');
-  const [guardado, setGuardado] = useState(false);
-  const { ocupado, error, correr } = useEscritura();
-  useEffect(() => { setTexto(actual?.texto ?? ''); }, [actual?.texto, persona.id]);
-  const cambio = texto.trim() !== (actual?.texto ?? '').trim();
-  return (
-    <div className="space-y-2">
-      <label className="sr-only" htmlFor="conclusion">Conclusión</label>
-      <textarea id="conclusion" rows={3} value={texto} onChange={e => { setTexto(e.target.value); setGuardado(false); }}
-        placeholder="Cómo va la persona, qué opina del programa, qué sigue…" className={campo} />
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-[11px] text-slate-400">{actual ? <>Última edición {fechaHora(actual.actualizadaEl)}{actual.actualizadaPor && <> · {actual.actualizadaPor}</>}</> : 'Sin conclusión'}</span>
-        <button type="button" disabled={!cambio || ocupado} onClick={() => void correr(() => guardarConclusion(persona.id, texto), () => setGuardado(true))} className={boton}>
-          {ocupado ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />} {guardado && !cambio ? 'Guardada' : 'Guardar'}
-        </button>
-      </div>
-      <ErrorLinea texto={error} />
-    </div>
-  );
 }
 
 // ─── Postulación externa ────────────────────────────────────────────────────────────────────────────────────────

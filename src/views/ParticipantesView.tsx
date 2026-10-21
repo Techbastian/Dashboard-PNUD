@@ -33,7 +33,7 @@ export function filasPersonas(d: DatosCohorte): Fila[] {
   });
 }
 
-const COLS: Record<number, string> = { 5: 'xl:grid-cols-5', 6: 'xl:grid-cols-6', 7: 'xl:grid-cols-7' };
+const COLS: Record<number, string> = { 5: 'xl:grid-cols-5', 6: 'xl:grid-cols-6', 7: 'xl:grid-cols-7', 8: 'xl:grid-cols-4' };
 const CAMPO = 'bg-white border border-slate-100 rounded-2xl px-4 py-2.5 text-xs font-bold text-slate-600';
 
 export default function ParticipantesView() {
@@ -75,17 +75,23 @@ export default function ParticipantesView() {
   // D-52: deserción en general = inactivas / todas las personas de la cohorte (sin filtros); sigue contando en los acumulados.
   const inactivas = filas.filter(f => f.baja).length;
   const desercion = filas.length ? Math.round((inactivas / filas.length) * 1000) / 10 : 0;
+  // D-63: cifra por etapa y, justo después, la de cada marca con `despues` (mismo orden que la tabla).
+  const cifras = columnas.filter(c => c.k === 'r' || marcas[c.i].despues);
+  const valor = (c: { k: 'm' | 'r'; i: number }) => (f: Fila) => (c.k === 'm' ? f.m[c.i] : f.r[c.i]);
 
   return (
     <div className={`space-y-6 ${cargando ? 'opacity-80' : ''}`}>
       <BarraDatos />
 
-      <div className={`grid grid-cols-2 md:grid-cols-3 ${COLS[Math.min(etapas.length + 2, 7)] ?? 'xl:grid-cols-5'} gap-4`}>
+      <div className={`grid grid-cols-2 md:grid-cols-3 ${COLS[Math.min(cifras.length + 2, 8)] ?? 'xl:grid-cols-5'} gap-4`}>
         <KPICard label="Personas" value={num(base.length)} color="text-slate-800" />
         <KPICard label={`Inactivas · ${desercion.toLocaleString('es-CO')} %`} value={num(inactivas)} color="text-red-600" />
-        {etapas.map((e, i) => {
-          const sinFuente = filas.length > 0 && filas.every(f => f.r[i] === null);
-          return <KPICard key={e.etapa} label={e.etapa} value={sinFuente ? null : num(base.filter(f => f.r[i] === true).length)} color="text-brand" />;
+        {cifras.map(c => {
+          const v = valor(c);
+          const sinFuente = filas.length > 0 && filas.every(f => v(f) === null);
+          const label = c.k === 'm' ? marcas[c.i].titulo : etapas[c.i].etapa;
+          return <KPICard key={`${c.k}${c.i}`} label={label} title={c.k === 'm' ? marcas[c.i].ayuda : undefined}
+            value={sinFuente ? null : num(base.filter(f => v(f) === true).length)} color="text-brand" />;
         })}
       </div>
 

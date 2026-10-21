@@ -3,6 +3,8 @@
  * ESCRIBE (solo equipo, por RLS is_admin): crear/editar/eliminar eventos, agendar personas, marcar asistencia.
  * Los tipos de evento salen de `catalogo` en la config (D-33); "Otro evento" no suma a ninguna etapa.
  * Lo que cuenta para las etapas es `asistio` (ver lib/etapas.ts y la función pública v4).
+ * D-59: un tipo con `empresas: true` es un evento PARA EMPRESAS (se marcan empresas, no personas); los demás son para
+ * personas. Se ve en la etiqueta, en el formulario (agrupado) y en las pestañas «Para personas» / «Para empresas».
  */
 import { Fragment, useMemo, useState, type FormEvent } from 'react';
 import { ChevronLeft, ChevronRight, Plus, MapPin, Video, Users, Trash2, Loader2, Check, X as XIcon, CalendarDays, List, Building2, Paperclip, Upload, Link2, ExternalLink, FileText, Image as ImageIcon, Phone } from 'lucide-react';
@@ -20,6 +22,11 @@ const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', '
 const PALETA = ['var(--color-brand)', '#ec4899', '#8b5cf6', '#14b8a6', '#f59e0b', '#10b981', '#6366f1', '#f43f5e'];
 
 const labelTipo = (t: string | null) => config.catalogo.find(c => c.tipo === t)?.label ?? (t ? humano(t) : 'Otro evento');
+/** D-59: el evento es para empresas si su tipo lo dice en el catálogo (`empresas: true`). */
+const paraEmpresas = (t: string | null) => config.catalogo.some(c => c.tipo === t && c.empresas);
+const hayDeEmpresas = config.catalogo.some(c => c.empresas);
+const PERSONAS = '__personas';
+const EMPRESAS = '__empresas';
 const colorTipo = (t: string | null) => {
   const i = config.catalogo.findIndex(c => c.tipo === t);
   return i >= 0 ? (config.catalogo[i].color ?? PALETA[i % PALETA.length]) : '#94a3b8';
@@ -72,7 +79,8 @@ export default function CalendarioView() {
   if (error && !datos) return <ErrorDatos error={error} />;
   if (!datos) return <Cargando />;
 
-  const eventos = filtroTipo === LLAMADAS ? [] : datos.eventos.filter(e => filtroTipo === 'todos' || (e.tipo ?? OTRO) === filtroTipo || (filtroTipo === OTRO && !config.catalogo.some(c => c.tipo === e.tipo)));
+  const eventos = filtroTipo === LLAMADAS ? [] : datos.eventos.filter(e => filtroTipo === 'todos' || (e.tipo ?? OTRO) === filtroTipo || (filtroTipo === OTRO && !config.catalogo.some(c => c.tipo === e.tipo))
+    || (filtroTipo === EMPRESAS && paraEmpresas(e.tipo)) || (filtroTipo === PERSONAS && !paraEmpresas(e.tipo)));
   const porDia = new Map<string, Evento[]>();
   for (const e of eventos) { const d = diaBogota(e.inicio); porDia.set(d, [...(porDia.get(d) ?? []), e]); }
   const llamadas = filtroTipo === 'todos' || filtroTipo === LLAMADAS ? datos.llamadas : [];
@@ -81,6 +89,8 @@ export default function CalendarioView() {
   const nombreDe = new Map(datos.personas.map(p => [p.id, p.nombre]));
   const abierto = datos.eventos.find(e => e.id === abiertoId) ?? null;
   const tipos = [{ key: 'todos', label: 'Todos', n: datos.eventos.length },
+    ...(hayDeEmpresas ? [{ key: PERSONAS, label: 'Para personas', n: datos.eventos.filter(e => !paraEmpresas(e.tipo)).length },
+      { key: EMPRESAS, label: 'Para empresas', n: datos.eventos.filter(e => paraEmpresas(e.tipo)).length }] : []),
     ...config.catalogo.map(c => ({ key: c.tipo, label: c.label, n: datos.eventos.filter(e => e.tipo === c.tipo).length })),
     { key: OTRO, label: 'Otros', n: datos.eventos.filter(e => !config.catalogo.some(c => c.tipo === e.tipo)).length },
     { key: LLAMADAS, label: 'Llamadas', n: datos.llamadas.length }];
@@ -96,7 +106,7 @@ export default function CalendarioView() {
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Pestanas opciones={tipos.filter(t => t.key === 'todos' || t.key === LLAMADAS || t.n > 0 || config.catalogo.some(c => c.tipo === t.key))} activa={filtroTipo} onCambio={setFiltroTipo} />
+        <Pestanas opciones={tipos.filter(t => ['todos', LLAMADAS, PERSONAS, EMPRESAS].includes(t.key) || t.n > 0 || config.catalogo.some(c => c.tipo === t.key))} activa={filtroTipo} onCambio={setFiltroTipo} />
         <div className="flex items-center gap-2">
           <div className="flex bg-white border border-slate-100 rounded-xl p-1">
             {([['mes', CalendarDays, 'Mes'], ['agenda', List, 'Agenda']] as const).map(([k, I, l]) => (
@@ -142,7 +152,7 @@ export default function CalendarioView() {
                       <button key={e.id} type="button" onClick={() => setAbiertoId(e.id)} title={e.nombre}
                         className="text-left rounded-lg px-1.5 py-1 text-[10px] font-bold leading-tight text-slate-700 hover:brightness-95"
                         style={{ background: `color-mix(in srgb, ${colorTipo(e.tipo)} 12%, white)`, borderLeft: `3px solid ${colorTipo(e.tipo)}` }}>
-                        <span className="text-slate-400">{hora(e.inicio)}</span> <span className="line-clamp-2">{e.nombre}</span>
+                        <span className="text-slate-400">{paraEmpresas(e.tipo) && <Building2 size={9} className="inline -mt-0.5" aria-label="Para empresas" />} {hora(e.inicio)}</span> <span className="line-clamp-2">{e.nombre}</span>
                       </button>
                     ))}
                     {lls.map(l => (
@@ -221,11 +231,11 @@ function Agenda({ eventos, llamadas, nombreDe, conteo, hoy, onAbrir, onAbrirLlam
                       <span className="size-2.5 rounded-full shrink-0" style={{ background: colorTipo(e.tipo) }} />
                       <span className="flex-1 min-w-0">
                         <span className="block text-sm font-bold text-slate-800 truncate">{e.nombre}</span>
-                        <span className="block text-[11px] font-bold text-slate-400">{labelTipo(e.tipo)}{e.modalidad ? ` · ${e.modalidad}` : ''}{e.ubicacion ? ` · ${e.ubicacion}` : ''}</span>
+                        <span className="block text-[11px] font-bold text-slate-400">{paraEmpresas(e.tipo) ? 'Para empresas' : 'Para personas'} · {labelTipo(e.tipo)}{e.modalidad ? ` · ${e.modalidad}` : ''}{e.ubicacion ? ` · ${e.ubicacion}` : ''}</span>
                       </span>
                       <span className="flex items-center gap-3 text-[11px] font-black text-slate-500 tnum whitespace-nowrap">
-                        {nEmp(e.id) > 0 && <span title="Empresas que asistieron"><Building2 size={12} className="inline -mt-0.5" /> {nEmp(e.id)}</span>}
-                        <span title="Personas: asistieron / en el evento"><Users size={12} className="inline -mt-0.5" /> {c?.asistio ?? 0}/{c?.total ?? 0}</span>
+                        {(paraEmpresas(e.tipo) || nEmp(e.id) > 0) && <span title="Empresas que asistieron"><Building2 size={12} className="inline -mt-0.5" /> {nEmp(e.id)}</span>}
+                        {(!paraEmpresas(e.tipo) || (c?.total ?? 0) > 0) && <span title="Personas: asistieron / en el evento"><Users size={12} className="inline -mt-0.5" /> {c?.asistio ?? 0}/{c?.total ?? 0}</span>}
                         <span title="Evidencias" className={nEvid(e.id) ? 'text-emerald-600' : 'text-slate-300'}><Paperclip size={12} className="inline -mt-0.5" /> {nEvid(e.id)}</span>
                       </span>
                     </button>
@@ -256,6 +266,7 @@ function PanelEvento({ evento, onCerrar, onEditar }: { evento: Evento; onCerrar:
   const candidatos: Persona[] = busca.trim().length < 2 ? [] : datos.personas
     .filter(p => !enEvento.has(p.id) && [p.nombre, p.documento, p.correo].some(v => norm(v).includes(norm(busca)))).slice(0, 8);
   const n = (e: string) => filas.filter(f => f.estado === e).length;
+  const deEmpresas = paraEmpresas(evento.tipo);
   const impacto = { empresas: datos.asistenciaEmpresas.filter(a => a.eventoId === evento.id).length, evidencias: datos.evidencias.filter(x => x.eventoId === evento.id).length };
 
   async function hacer(clave: string, f: () => Promise<string | null>) {
@@ -274,6 +285,7 @@ function PanelEvento({ evento, onCerrar, onEditar }: { evento: Evento; onCerrar:
         <span className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded" style={{ background: `color-mix(in srgb, ${colorTipo(evento.tipo)} 14%, white)`, color: '#334155' }}>
           <span className="size-2 rounded-full" style={{ background: colorTipo(evento.tipo) }} />{labelTipo(evento.tipo)}
         </span>
+        <Etiqueta tono={deEmpresas ? 'brand' : 'slate'}>{deEmpresas ? 'Para empresas' : 'Para personas'}</Etiqueta>
         {evento.modalidad && <Etiqueta>{evento.modalidad}</Etiqueta>}
         {!evento.tomaAsistencia && <Etiqueta tono="amber">Sin toma de asistencia</Etiqueta>}
         {evento.origen && evento.origen !== 'dashboard' && <Etiqueta>Origen: {evento.origen}</Etiqueta>}
@@ -286,21 +298,22 @@ function PanelEvento({ evento, onCerrar, onEditar }: { evento: Evento; onCerrar:
         </div>
       )}
 
-      <div className="grid grid-cols-3 gap-3">
+      {!deEmpresas && <div className="grid grid-cols-3 gap-3">
         {[['Asistieron', n('asistio'), 'text-emerald-600'], ['Agendados', n('agendado'), 'text-amber-600'], ['No asistieron', n('no_asistio'), 'text-red-500']].map(([l, v, c]) => (
           <div key={l as string} className="bg-slate-50 rounded-2xl p-3 text-center">
             <p className={`text-2xl font-black tnum ${c}`}>{v as number}</p>
             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{l as string}</p>
           </div>
         ))}
-      </div>
+      </div>}
 
       {error && <Aviso tono="red">{error}</Aviso>}
 
-      {config.catalogo.find(c => c.tipo === evento.tipo)?.empresas && <EmpresasDelEvento evento={evento} />}
+      {deEmpresas && <EmpresasDelEvento evento={evento} />}
       <EvidenciasDelEvento evento={evento} />
 
-      <BloqueFicha titulo="Agregar persona de la cohorte">
+      {/* D-59: en un evento para empresas no se agregan personas; si ya tenía (de antes), se siguen viendo. */}
+      {!deEmpresas && <BloqueFicha titulo="Agregar persona de la cohorte">
         <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Nombre, documento o correo…"
           className="w-full bg-slate-50 rounded-xl px-4 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-brand/20" />
         {candidatos.length > 0 && (
@@ -317,9 +330,9 @@ function PanelEvento({ evento, onCerrar, onEditar }: { evento: Evento; onCerrar:
           </ul>
         )}
         {busca.trim().length >= 2 && candidatos.length === 0 && <p className="text-[11px] font-bold text-slate-400 mt-2">Nadie más de la cohorte coincide.</p>}
-      </BloqueFicha>
+      </BloqueFicha>}
 
-      <BloqueFicha titulo={`Personas en el evento (${filas.length})`}>
+      {(!deEmpresas || filas.length > 0) && <BloqueFicha titulo={`Personas en el evento (${filas.length})`}>
         {filas.length === 0 ? <Vacio texto="Aún no hay personas" /> : (
           <ul className="divide-y divide-slate-50 border border-slate-100 rounded-xl">
             {filas.map(f => {
@@ -354,7 +367,7 @@ function PanelEvento({ evento, onCerrar, onEditar }: { evento: Evento; onCerrar:
             })}
           </ul>
         )}
-      </BloqueFicha>
+      </BloqueFicha>}
 
       <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100">
         <button type="button" onClick={onEditar} className="text-[11px] font-black uppercase tracking-widest text-brand">Editar evento</button>
@@ -423,9 +436,24 @@ function FormEvento({ inicial, onCerrar, onGuardado }: { inicial: NonNullable<Ed
         <div>
           <label className={lab} htmlFor="ev-tipo">Tipo</label>
           <select id="ev-tipo" value={tipo} onChange={x => { setTipo(x.target.value); const c = config.catalogo.find(k => k.tipo === x.target.value); if (c?.modalidad) setModalidad(c.modalidad); }} className={campo}>
-            {config.catalogo.map(c => <option key={c.tipo} value={c.tipo}>{c.label}</option>)}
-            <option value={OTRO}>Otro evento (no suma a la ruta)</option>
+            {hayDeEmpresas ? (
+              <>
+                <optgroup label="Para personas">
+                  {config.catalogo.filter(c => !c.empresas).map(c => <option key={c.tipo} value={c.tipo}>{c.label}</option>)}
+                  <option value={OTRO}>Otro evento (no suma a la ruta)</option>
+                </optgroup>
+                <optgroup label="Para empresas">
+                  {config.catalogo.filter(c => c.empresas).map(c => <option key={c.tipo} value={c.tipo}>{c.label}</option>)}
+                </optgroup>
+              </>
+            ) : (
+              <>
+                {config.catalogo.map(c => <option key={c.tipo} value={c.tipo}>{c.label}</option>)}
+                <option value={OTRO}>Otro evento (no suma a la ruta)</option>
+              </>
+            )}
           </select>
+          {hayDeEmpresas && <p className="text-[11px] font-black text-slate-500 mt-1">{sel?.empresas ? 'Para empresas: se marcan las empresas que asistieron.' : 'Para personas: se marca la asistencia de cada persona.'}</p>}
           {sel?.descripcion && <p className="text-[11px] font-bold text-slate-400 mt-1">{sel.descripcion}</p>}
         </div>
         <div>

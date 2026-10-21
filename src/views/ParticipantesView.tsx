@@ -49,6 +49,11 @@ export default function ParticipantesView() {
   const [conds, setConds] = useState<Cond[]>(() => marcas.map(() => 'todas'));
   const [abierta, setAbierta] = useState<string | null>(null);
   const etapas = etapasConRegla();
+  // D-60: las marcas sin `despues` van antes de las etapas; las demás, justo después de su etapa.
+  const columnas: { k: 'm' | 'r'; i: number }[] = [
+    ...marcas.flatMap((m, i) => (m.despues ? [] : [{ k: 'm' as const, i }])),
+    ...etapas.flatMap((e, i) => [{ k: 'r' as const, i }, ...marcas.flatMap((m, j) => (m.despues === e.etapa ? [{ k: 'm' as const, i: j }] : []))]),
+  ];
   const filas = useMemo(() => (datos ? filasPersonas(datos) : []), [datos]);
 
   if (error && !datos) return <ErrorDatos error={error} />;
@@ -134,8 +139,9 @@ export default function ParticipantesView() {
                 <th className="px-6 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest sticky left-0 bg-gray-50">Persona</th>
                 <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Estado</th>
                 <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Programa</th>
-                {marcas.map(m => <th key={m.titulo} title={m.ayuda} className="px-3 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">{m.titulo}</th>)}
-                {etapas.map(e => <th key={e.etapa} className="px-3 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">{e.etapa}</th>)}
+                {columnas.map(c => c.k === 'm'
+                  ? <th key={`m${c.i}`} title={marcas[c.i].ayuda} className="px-3 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">{marcas[c.i].titulo}</th>
+                  : <th key={`r${c.i}`} className="px-3 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">{etapas[c.i].etapa}</th>)}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -149,8 +155,7 @@ export default function ParticipantesView() {
                   <td className="px-4 py-3" title={f.baja ? `${motivoLabel(f.baja.motivo)} · ${fecha(f.baja.fechaEfectiva)}` : undefined}>
                     {f.baja ? <Etiqueta tono="red">Inactiva</Etiqueta> : <Etiqueta tono="emerald">Activa</Etiqueta>}
                   </td>
-                  {f.m.map((v, i) => <td key={`m${i}`} className="px-3 py-3 text-center"><MarcaEtapa v={v} /></td>)}
-                  {f.r.map((v, i) => <td key={i} className="px-3 py-3 text-center"><MarcaEtapa v={v} /></td>)}
+                  {columnas.map(c => <td key={`${c.k}${c.i}`} className="px-3 py-3 text-center"><MarcaEtapa v={c.k === 'm' ? f.m[c.i] : f.r[c.i]} /></td>)}
                 </tr>
               ))}
             </tbody>

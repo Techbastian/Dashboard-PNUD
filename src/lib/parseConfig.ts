@@ -109,8 +109,10 @@ export interface DashboardConfig {
   preguntas: Pregunta[];
   foco: Foco | null;
   informe: Informe;
-  /** D-61: `diagnostico: true` = el módulo Empresas registra el enlace al diagnóstico de cada empresa (A-31). */
-  empresas: { diagnostico: boolean };
+  /** D-61: `diagnostico: true` = el módulo Empresas registra el enlace al diagnóstico de cada empresa (A-31).
+   *  D-64: `sensibilizada` = qué hace sensibilizada a una empresa: asistir a un evento para empresas (`evento`, por
+   *  defecto) o tener diagnóstico (`diagnostico`; exige `diagnostico: true`). */
+  empresas: { diagnostico: boolean; sensibilizada: 'evento' | 'diagnostico' };
 }
 
 export function parseConfigMd(md: string): DashboardConfig {
@@ -140,8 +142,19 @@ export function parseConfigMd(md: string): DashboardConfig {
     modulos: validarModulos(c.modulos),
     ...validarPestanas(c.pestanas, c.preguntas, c.foco, c.informe),
     hitos: validarHitos(c.hitos),
-    empresas: { diagnostico: (c.empresas as { diagnostico?: unknown } | undefined)?.diagnostico === true },
+    empresas: validarEmpresas(c.empresas),
   };
+}
+
+function validarEmpresas(e: unknown): DashboardConfig['empresas'] {
+  const x = (e ?? {}) as { diagnostico?: unknown; sensibilizada?: unknown };
+  const diagnostico = x.diagnostico === true;
+  const sensibilizada = x.sensibilizada ?? 'evento';
+  if (sensibilizada !== 'evento' && sensibilizada !== 'diagnostico')
+    throw new Error(`dashboard.config.md: empresas.sensibilizada «${String(sensibilizada)}» no es válido (evento | diagnostico)`);
+  if (sensibilizada === 'diagnostico' && !diagnostico)
+    throw new Error('dashboard.config.md: empresas.sensibilizada: diagnostico exige empresas.diagnostico: true');
+  return { diagnostico, sensibilizada };
 }
 
 /** Condiciones que entiende la función pública en `uniones` (A-20) — mismas que las reglas por persona. */

@@ -2,6 +2,7 @@
  * Empresas (E6, D-36): las organizaciones vinculadas al proyecto (company_cohorts), con sus datos de contacto
  * y sus vacantes de la cohorte. Va aparte del proceso de las personas (Colocación). Privada: trae contactos.
  * D-61: con `empresas.diagnostico: true` en la config, columna, filtro y enlace al diagnóstico de cada empresa (A-31).
+ * D-64: con `empresas.sensibilizada: diagnostico`, sensibilizada = con diagnóstico: una sola cifra y una sola columna.
  */
 import { Fragment, useState } from 'react';
 import { ChevronDown, ChevronRight, ExternalLink, FileCheck2, Mail, Phone, User } from 'lucide-react';
@@ -38,15 +39,20 @@ export default function EmpresasView() {
     eventosDe.set(a.empresaId, [...(eventosDe.get(a.empresaId) ?? []), ev]);
   }
   const sensibilizada = (id: string) => (eventosDe.get(id) ?? []).some(e => tiposEmpresa.has(e.tipo ?? ''));
-  const columnas = ['', 'Empresa', 'Tamaño', 'Sector', 'Municipios', 'Sensibilizada', ...(conDiagnostico ? ['Diagnóstico'] : []), 'Vacantes'];
+  const porDiagnostico = config.empresas.sensibilizada === 'diagnostico';
+  const porEvento = !porDiagnostico && tiposEmpresa.size > 0;
+  const columnas = ['', 'Empresa', 'Tamaño', 'Sector', 'Municipios', ...(porDiagnostico ? [] : ['Sensibilizada']),
+    ...(conDiagnostico ? [porDiagnostico ? 'Sensibilizada · diagnóstico' : 'Diagnóstico'] : []), 'Vacantes'];
+  const nCifras = 4 + (porEvento ? 1 : 0) + (conDiagnostico ? 1 : 0);
 
   return (
     <div className={`space-y-6 ${cargando ? 'opacity-80' : ''}`}>
       <BarraDatos />
-      <div className={`grid grid-cols-2 md:grid-cols-3 ${conDiagnostico ? 'xl:grid-cols-6' : 'xl:grid-cols-5'} gap-4`}>
+      <div className={`grid grid-cols-2 md:grid-cols-3 ${nCifras === 6 ? 'xl:grid-cols-6' : nCifras === 4 ? 'xl:grid-cols-4' : 'xl:grid-cols-5'} gap-4`}>
         <KPICard label="Empresas vinculadas" value={num(datos.empresas.length)} color="text-brand" />
-        {tiposEmpresa.size > 0 && <KPICard label="Sensibilizadas" value={num(datos.empresas.filter(e => sensibilizada(e.id)).length)} color="text-emerald-600" subtext="Asistieron a un evento de sensibilización" />}
-        {conDiagnostico && <KPICard label="Con diagnóstico" value={num(datos.empresas.filter(e => e.diagnostico).length)} color="text-emerald-600" subtext="Con el enlace al diagnóstico registrado" />}
+        {porEvento && <KPICard label="Sensibilizadas" value={num(datos.empresas.filter(e => sensibilizada(e.id)).length)} color="text-emerald-600" subtext="Asistieron a un evento de sensibilización" />}
+        {conDiagnostico && <KPICard label={porDiagnostico ? 'Sensibilizadas' : 'Con diagnóstico'} value={num(datos.empresas.filter(e => e.diagnostico).length)} color="text-emerald-600"
+          subtext={porDiagnostico ? 'Con el diagnóstico de empleo inclusivo registrado' : 'Con el enlace al diagnóstico registrado'} />}
         <KPICard label="Con vacantes" value={num(datos.empresas.filter(e => e.vacantes.length).length)} color="text-emerald-600" />
         <KPICard label="Cargos" value={num(vacantes.length)} color="text-qsd-purple" />
         <KPICard label="Puestos" value={num(vacantes.reduce((s, v) => s + v.puestos, 0))} color="text-qsd-teal" />
@@ -58,7 +64,9 @@ export default function EmpresasView() {
         </select>
         {conDiagnostico && (
           <select value={diag} onChange={e => setDiag(e.target.value as typeof diag)} aria-label="Diagnóstico" className="bg-white border border-slate-100 rounded-2xl px-4 py-2.5 text-xs font-bold text-slate-600">
-            <option value="todas">Con y sin diagnóstico</option><option value="con">Con diagnóstico</option><option value="sin">Sin diagnóstico</option>
+            {porDiagnostico
+              ? <><option value="todas">Sensibilizadas y no</option><option value="con">Sensibilizadas (con diagnóstico)</option><option value="sin">Sin diagnóstico</option></>
+              : <><option value="todas">Con y sin diagnóstico</option><option value="con">Con diagnóstico</option><option value="sin">Sin diagnóstico</option></>}
           </select>
         )}
         <label className="flex items-center gap-2 text-xs font-bold text-slate-500"><input type="checkbox" checked={soloConVacantes} onChange={e => setSoloConVacantes(e.target.checked)} className="accent-[var(--color-brand)]" /> Solo con vacantes</label>
@@ -79,7 +87,7 @@ export default function EmpresasView() {
                     <td className="px-4 py-3 text-xs text-slate-600">{e.tamano ?? '—'}</td>
                     <td className="px-4 py-3 text-xs text-slate-600 max-w-[14rem]">{e.sector ?? '—'}</td>
                     <td className="px-4 py-3 text-xs text-slate-600 max-w-[12rem]">{e.municipios.join(', ') || '—'}</td>
-                    <td className="px-4 py-3">{sensibilizada(e.id) ? <Etiqueta tono="emerald">Sí</Etiqueta> : <span className="text-xs text-slate-300">—</span>}</td>
+                    {!porDiagnostico && <td className="px-4 py-3">{sensibilizada(e.id) ? <Etiqueta tono="emerald">Sí</Etiqueta> : <span className="text-xs text-slate-300">—</span>}</td>}
                     {conDiagnostico && (
                       <td className="px-4 py-3">{e.diagnostico
                         ? <a href={e.diagnostico.url} target="_blank" rel="noreferrer" onClick={ev => ev.stopPropagation()} className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 hover:underline"><FileCheck2 size={14} />Ver</a>

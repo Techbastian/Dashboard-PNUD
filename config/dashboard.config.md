@@ -50,9 +50,8 @@ Una fase por producto del contrato. El **objetivo** sale de `cohort_goals` (por 
 ```yaml
 metas:
   # P1 Gestión empresarial
-  - { fase: 1, meta: Empresas sensibilizadas en empleo inclusivo,  actual: "empresas.asistencia_por_tipo[sensibilizacion].empresas", ayuda: Asistieron a al menos un evento de sensibilización (Calendario) }
+  - { fase: 1, meta: Empresas sensibilizadas en empleo inclusivo,  actual: empresas.con_diagnostico, ayuda: "Sensibilizada = con el diagnóstico de empleo inclusivo registrado en Empresas (P-26)" }
   - { fase: 1, meta: Espacios de aprendizaje con empresas,         actual: "formacion.eventos_por_tipo[sensibilizacion].realizados", ayuda: Eventos de sensibilización ya realizados }
-  - { fase: 1, meta: Empresas con diagnóstico de empleo inclusivo, actual: empresas.con_diagnostico, ayuda: Con el enlace al diagnóstico registrado en el módulo Empresas (P-21) }
   # P2 Mapeo y focalización
   - { fase: 2, meta: Personas registradas,                         actual: "formularios[recorrer-pnud].personas" }
   - { fase: 2, meta: Mujeres registradas,                          actual: "formularios[recorrer-pnud].mujeres" }
@@ -77,7 +76,7 @@ fases:
 
 ```yaml
 cifras:
-  - { label: Empresas sensibilizadas,  valor: "empresas.asistencia_por_tipo[sensibilizacion].empresas" }
+  - { label: Empresas sensibilizadas,  valor: empresas.con_diagnostico, ayuda: Con diagnóstico de empleo inclusivo }
   - { label: Personas registradas,     valor: "formularios[recorrer-pnud].personas" }
   - { label: Mujeres registradas,      valor: "formularios[recorrer-pnud].mujeres" }
   - { label: Postuladas a vacantes,    valor: empleabilidad.personas_postuladas_aliadas, ayuda: P3 · intermediación atribuible (A-16) }
@@ -112,7 +111,7 @@ embudo:
 catalogo:
   - { tipo: orientacion,         label: Sesión de orientación,  modalidad: Presencial, descripcion: "Quien asiste pasa la etapa Orientación." }
   - { tipo: formacion,           label: Sesión formativa,       modalidad: Presencial, descripcion: "Ponle el nombre de la sesión. Quien asiste y está matriculada cuenta como acelerada." }
-  - { tipo: sensibilizacion,     label: Sensibilización con empresas, modalidad: Presencial, empresas: true, descripcion: "Marca las empresas que asistieron: quedan sensibilizadas (P1). Cuenta como espacio de aprendizaje con empresas." }
+  - { tipo: sensibilizacion,     label: Sensibilización con empresas, modalidad: Presencial, empresas: true, descripcion: "Marca las empresas que asistieron. Cuenta como espacio de aprendizaje con empresas." }
   - { tipo: espacio_aprendizaje, label: Espacio de aprendizaje con la población, modalidad: Presencial, descripcion: "Cuenta para los 3 espacios del P2. Sube la agenda y la lista de asistencia firmada." }
   - { tipo: mitigacion,          label: Mitigación de barreras, modalidad: Presencial }
 ```
@@ -166,10 +165,14 @@ modulos: [dashboard, participantes, colocacion, empresas, calendario, listados, 
 
 Diagnóstico de empleo inclusivo (P1): el equipo pega en la ficha de la empresa el enlace al PDF en Drive. El dashboard
 público solo muestra cuántas empresas lo tienen, nunca el enlace.
+**Una empresa con diagnóstico es una empresa sensibilizada** (P-26): es una sola meta («Empresas sensibilizadas en
+empleo inclusivo»), contada con `empresas.con_diagnostico`. Los eventos de sensibilización cuentan como espacios de
+aprendizaje con empresas, no hacen sensibilizada a la empresa.
 
 ```yaml
 empresas:
   diagnostico: true
+  sensibilizada: diagnostico   # P-26: sensibilizada = con diagnóstico (una sola meta)
 ```
 
 ---
@@ -411,7 +414,7 @@ pestanas:
     titulo: Empresas
     cifras:
       - { label: Empresas aliadas,        valor: empresas.aliadas }
-      - { label: Empresas sensibilizadas, valor: "empresas.asistencia_por_tipo[sensibilizacion].empresas", meta: Empresas sensibilizadas en empleo inclusivo }
+      - { label: Empresas sensibilizadas, valor: empresas.con_diagnostico, meta: Empresas sensibilizadas en empleo inclusivo }
       - { label: Vacantes del proyecto,   valor: vacantes.total, nota: "En {vacantes.empresas_con_vacantes} empresas" }
       - { label: Personas vinculadas,     valor: empleabilidad.colocados, meta: Personas vinculadas laboralmente }
     graficos:
@@ -427,7 +430,7 @@ pestanas:
 ```yaml
 informe:
   hojas:
-    - { nombre: 1 Hitos, contenido: metas, descripcion: "Las 13 metas del contrato: actual, objetivo, % de avance y estado" }
+    - { nombre: 1 Hitos, contenido: metas, descripcion: "Las 12 metas del contrato: actual, objetivo, % de avance y estado" }
     - nombre: 2 Registro
       descripcion: Género, edad, nivel educativo, municipio y las preguntas de selección del registro
       cifras: [{ label: Personas registradas, valor: "formularios[recorrer-pnud].personas" }, { label: Mujeres registradas, valor: "formularios[recorrer-pnud].mujeres" }]
@@ -445,7 +448,7 @@ informe:
       descripcion: "Indicadores del P1, tamaño, sector, municipio; nivel educativo, experiencia, salario, contrato y modalidad de las vacantes; intermediación"
       cifras:
         - { label: Empresas aliadas, valor: empresas.aliadas }
-        - { label: Empresas sensibilizadas, valor: "empresas.asistencia_por_tipo[sensibilizacion].empresas" }
+        - { label: Empresas sensibilizadas, valor: empresas.con_diagnostico }
         - { label: Espacios de aprendizaje con empresas realizados, valor: "formacion.eventos_por_tipo[sensibilizacion].realizados" }
         - { label: Vacantes (puestos), valor: vacantes.total }
         - { label: Cargos, valor: vacantes.cargos }

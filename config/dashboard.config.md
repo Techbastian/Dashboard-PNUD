@@ -96,7 +96,7 @@ uniones:
   orientacion: [formulario:linea-base, asistencia:orientacion]
 embudo:
   - { etapa: Registro,       valor: "formularios[recorrer-pnud].personas" }
-  - { etapa: Orientación,    valor: uniones.orientacion.personas }
+  - { etapa: Orientación,    valor: uniones.orientacion.personas, detalle: línea base }   # P-27
   - { etapa: Aceleración,    valor: "formacion.asistencia_por_tipo[formacion].matriculados" }
   - { etapa: Intermediación, valor: empleabilidad.personas_postuladas_aliadas }
   - { etapa: Colocación,     valor: empleabilidad.colocados }
@@ -140,13 +140,18 @@ distribuciones:
 
 ## Participantes (P-12, D-44)
 
-Columnas de ✓ que no son etapas de la ruta. También sirven de filtro (con / sin) y salen en el Excel de Listados.
+Columnas de ✓ que no son etapas de la ruta. Se filtran con el ▾ de su columna y salen en el Excel. `vistas` = botones de vista rápida (D-65).
 
 ```yaml
 participantes:
   marcas:
     - { titulo: Hoja de vida, regla: hv, ayuda: Hoja de vida cargada en la plataforma }
     - { titulo: Perfilamiento, regla: "documentos:perfilamiento", despues: Orientación, ayuda: Informe individual de perfilamiento cargado en la Fase Documental }
+  # P-27 (D-65): vistas rápidas de Participantes. «Orientación» = hizo la línea base o asistió a una sesión de orientación.
+  vistas:
+    - { titulo: Registros sin línea base,     con: [Registro],      sin: [Orientación] }
+    - { titulo: Línea base sin perfilamiento, con: [Orientación],   sin: [Perfilamiento] }
+    - { titulo: Perfilamiento sin línea base, con: [Perfilamiento], sin: [Orientación] }
 ```
 
 ## Secciones del Dashboard

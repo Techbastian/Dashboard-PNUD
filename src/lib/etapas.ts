@@ -109,6 +109,9 @@ export function etapasConRegla() {
   return config.embudo.map(e => ({ ...e, regla: reglaDe(e) }));
 }
 
+/** Nombre de la etapa con su aclaración, si la config la trae (D-65): «Orientación (línea base)». */
+export const nombreEtapa = (e: Etapa) => (e.detalle ? `${e.etapa} (${e.detalle})` : e.etapa);
+
 /** Última etapa alcanzada (la más avanzada en orden de la config), o null. */
 export function etapaActual(resultados: Resultado[]): number | null {
   for (let i = resultados.length - 1; i >= 0; i--) if (resultados[i] === true) return i;

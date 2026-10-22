@@ -1,7 +1,7 @@
 {
   "plantilla": "disruptia-dashboard-base",
-  "version": "2.11.0",
-  "commit": "e3d35f9",
+  "version": "2.12.0",
+  "commit": "14abdad",
   "creado": "2026-09-28",
   "proyecto": "Proyecto PNUD",
   "slug": "pnud",
@@ -95,6 +95,12 @@
     {
       "version": "2.11.0",
       "commit": "e3d35f9",
+      "fecha": "2026-10-22",
+      "accion": "actualizado"
+    },
+    {
+      "version": "2.12.0",
+      "commit": "14abdad",
       "fecha": "2026-10-22",
       "accion": "actualizado"
     }

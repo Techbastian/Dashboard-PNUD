@@ -7,12 +7,11 @@ import { useMemo, useState } from 'react';
 import { Download, Loader2, Users, Building2 } from 'lucide-react';
 import { useCohorte } from '../lib/datos';
 import { etapasConRegla } from '../lib/etapas';
-import { fecha, humano, num } from '../lib/formato';
+import { humano, num } from '../lib/formato';
 import { descargarXlsx, hoja } from '../lib/excel';
 import { config } from '../lib/config';
 import { BarraDatos, Cargando, ErrorDatos, Pestanas, Aviso } from '../ui/Privado';
-import { filasPersonas } from './ParticipantesView';
-import { motivoLabel } from '../ui/Seguimiento';
+import { filasPersonas, columnasPersonas } from './ParticipantesView';
 
 type Cond = 'cualquiera' | 'si' | 'no';
 const slug = (t: string) => t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -47,19 +46,7 @@ export default function ListadosView() {
     try {
       if (tipo === 'personas') {
         await descargarXlsx(`${base}-personas-${hoy}.xlsx`, [hoja({
-          nombre: 'Personas', filas: elegidas, columnas: [
-            { titulo: 'Nombre', valor: f => f.p.nombre }, { titulo: 'Tipo doc.', valor: f => f.p.tipoDoc }, { titulo: 'Documento', valor: f => f.p.documento },
-            { titulo: 'Correo', valor: f => f.p.correo }, { titulo: 'Celular', valor: f => f.p.celular }, { titulo: 'Ciudad', valor: f => f.p.ciudad },
-            { titulo: 'Género', valor: f => f.p.genero }, { titulo: 'Estado postulación', valor: f => humano(f.p.estado) }, { titulo: 'Registro', valor: f => fecha(f.p.registradaEl) },
-            ...etapas.map((e, i) => ({ titulo: e.etapa, valor: (f: typeof elegidas[number]) => (f.r[i] === null ? 'Sin fuente' : f.r[i] ? 'Sí' : 'No') })),
-            { titulo: 'Etapa actual', valor: f => (f.actual == null ? '' : etapas[f.actual].etapa) },
-            { titulo: 'Programa', valor: f => (f.baja ? 'Inactiva' : 'Activa') },
-            { titulo: 'Motivo inactivación', valor: f => (f.baja ? motivoLabel(f.baja.motivo) : '') },
-            { titulo: 'Inactiva desde', valor: f => (f.baja ? fecha(f.baja.fechaEfectiva) : '') },
-            { titulo: 'Llamadas', valor: f => datos!.llamadas.filter(l => l.personaId === f.p.id).length },
-            ...marcas.map((m, i) => ({ titulo: m.titulo, valor: (f: typeof elegidas[number]) => (f.m[i] === null ? 'Sin fuente' : f.m[i] ? 'Sí' : 'No') })),
-            { titulo: 'Hoja de vida (enlace)', valor: f => f.p.hv },
-          ],
+          nombre: 'Personas', filas: elegidas, columnas: columnasPersonas(datos!),
         })]);
       } else {
         const vac = datos!.empresas.flatMap(e => e.vacantes.map(v => ({ e, v })));

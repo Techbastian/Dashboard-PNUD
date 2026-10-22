@@ -10,10 +10,12 @@ export interface Cifra { label: string; valor: string; ayuda?: string; color?: s
 export interface Meta { fase?: number; meta: string; actual: string; ayuda?: string }
 /** Etapa de la ruta de la persona (D-37). `valor` = ruta del agregado público; `regla` = cómo se evalúa por persona
  *  en las vistas privadas (si falta, se deduce de `valor`; ver src/lib/etapas.ts). */
-export interface Etapa { etapa: string; valor: string; regla?: string }
+export interface Etapa { etapa: string; valor: string; regla?: string; /** D-65: aclaración que va entre paréntesis en Participantes y Excel, p. ej. «línea base». */ detalle?: string }
 /** Marca de Participantes (D-44): columna ✓ que no es etapa de la ruta, p. ej. `hv` = hoja de vida cargada.
  *  `despues` (D-60) = nombre de la etapa tras la cual va la columna; sin él, va antes de las etapas. */
 export interface Marca { titulo: string; regla: string; ayuda?: string; despues?: string }
+/** Vista rápida de Participantes (D-65): columnas (etapas o marcas, por su nombre) que deben tener ✓ (`con`) o — (`sin`). */
+export interface Vista { titulo: string; con: string[]; sin: string[] }
 /** Tipo de evento que se puede crear en el Calendario (D-33). `etapa` = a qué etapa de la ruta suma asistir. */
 export interface TipoEvento {
   tipo: string; label: string; descripcion?: string; modalidad?: 'Presencial' | 'Virtual' | 'Híbrida'; color?: string;
@@ -97,7 +99,7 @@ export interface DashboardConfig {
   fases: Record<string, string>;
   embudo: Etapa[];
   /** D-44 marcas; D-52 motivos de inactivación (deserción interna). */
-  participantes: { marcas: Marca[]; motivos: Motivo[] };
+  participantes: { marcas: Marca[]; motivos: Motivo[]; vistas: Vista[] };
   catalogo: TipoEvento[];
   distribuciones: Record<string, Distribucion[]>;
   secciones: string[];
@@ -189,19 +191,41 @@ export const MOTIVOS_POR_DEFECTO: Motivo[] = [
   { id: 'no_cumple_requisitos', label: 'No cumple requisitos' }, { id: 'otro', label: 'Otro' },
 ];
 
-function validarParticipantes(p: unknown, embudo: Etapa[] | undefined): { marcas: Marca[]; motivos: Motivo[] } {
+function validarParticipantes(p: unknown, embudo: Etapa[] | undefined): DashboardConfig['participantes'] {
   const err = (m: string): never => { throw new Error(`dashboard.config.md: ${m}`); };
   const marcas = ((p as { marcas?: unknown } | undefined)?.marcas ?? []) as Partial<Marca>[];
   if (!Array.isArray(marcas)) err('participantes.marcas debe ser una lista');
+  const out = marcas.map((m, i) => {
+    if (!m?.titulo || !m.regla) err(`participantes.marcas[${i}] necesita titulo y regla`);
+    if (!REGLA_MARCA.test(m.regla!.trim())) err(`participantes.marcas[${i}]: regla «${m.regla}» no existe`);
+    if (m.despues != null && !(embudo ?? []).some(e => e.etapa === m.despues)) err(`participantes.marcas[${i}].despues: «${m.despues}» no es una etapa del embudo`);
+    return { titulo: m.titulo!, regla: m.regla!.trim(), ayuda: m.ayuda, despues: m.despues };
+  });
   return {
-    marcas: marcas.map((m, i) => {
-      if (!m?.titulo || !m.regla) err(`participantes.marcas[${i}] necesita titulo y regla`);
-      if (!REGLA_MARCA.test(m.regla!.trim())) err(`participantes.marcas[${i}]: regla «${m.regla}» no existe`);
-      if (m.despues != null && !(embudo ?? []).some(e => e.etapa === m.despues)) err(`participantes.marcas[${i}].despues: «${m.despues}» no es una etapa del embudo`);
-      return { titulo: m.titulo!, regla: m.regla!.trim(), ayuda: m.ayuda, despues: m.despues };
-    }),
+    marcas: out,
     motivos: validarMotivos((p as { motivos?: unknown } | undefined)?.motivos),
+    vistas: validarVistas((p as { vistas?: unknown } | undefined)?.vistas, [...(embudo ?? []).map(e => e.etapa), ...out.map(m => m.titulo)]),
   };
+}
+
+function validarVistas(v: unknown, columnas: string[]): Vista[] {
+  const err = (x: string): never => { throw new Error(`dashboard.config.md: ${x}`); };
+  if (v == null) return [];
+  if (!Array.isArray(v)) err('participantes.vistas debe ser una lista');
+  return (v as Partial<Vista>[]).map((x, i) => {
+    if (!x?.titulo) err(`participantes.vistas[${i}] necesita titulo`);
+    const lista = (k: 'con' | 'sin') => {
+      const l = x[k] ?? [];
+      if (!Array.isArray(l)) err(`participantes.vistas[${i}].${k} debe ser una lista`);
+      return l.map(n => {
+        if (!columnas.includes(String(n))) err(`participantes.vistas[${i}].${k}: «${n}» no es una etapa del embudo ni una marca`);
+        return String(n);
+      });
+    };
+    const con = lista('con'), sin = lista('sin');
+    if (!con.length && !sin.length) err(`participantes.vistas[${i}] necesita al menos una columna en con o sin`);
+    return { titulo: String(x.titulo), con, sin };
+  });
 }
 
 function validarMotivos(m: unknown): Motivo[] {

@@ -56,7 +56,7 @@ metas:
   - { fase: 2, meta: Personas registradas,                         actual: "formularios[recorrer-pnud].personas" }
   - { fase: 2, meta: Mujeres registradas,                          actual: "formularios[recorrer-pnud].mujeres" }
   - { fase: 2, meta: Personas con línea base,                      actual: "formularios[linea-base].personas" }
-  - { fase: 2, meta: Planes de acción individuales,                actual: pendiente, ayuda: El plan de acción aún no se registra en la plataforma }
+  - { fase: 2, meta: Planes de acción individuales,                actual: grupos.perfilamiento, ayuda: "El plan de acción se deriva del perfilamiento: cuenta quien tiene el informe individual de perfilamiento cargado (P-29)" }
   - { fase: 2, meta: Espacios de aprendizaje con la población,     actual: "formacion.eventos_por_tipo[espacio_aprendizaje].realizados", ayuda: Eventos de tipo «Espacio de aprendizaje» ya realizados }
   # P4 Mitigación de barreras
   - { fase: 4, meta: Personas atendidas en mitigación de barreras, actual: grupos.mitigadas, ayuda: Con soporte de entrega del servicio de mitigación }

@@ -59,8 +59,9 @@ metas:
   - { fase: 2, meta: Planes de acción individuales,                actual: grupos.perfilamiento, ayuda: "El plan de acción se deriva del perfilamiento: cuenta quien tiene el informe individual de perfilamiento cargado (P-29)" }
   - { fase: 2, meta: Espacios de aprendizaje con la población,     actual: "formacion.eventos_por_tipo[espacio_aprendizaje].realizados", ayuda: Eventos de tipo «Espacio de aprendizaje» ya realizados }
   # P4 Mitigación de barreras
-  - { fase: 4, meta: Personas atendidas en mitigación de barreras, actual: grupos.mitigadas, ayuda: Con soporte de entrega del servicio de mitigación }
-  - { fase: 4, meta: Mujeres atendidas en mitigación de barreras,  actual: grupos_mujeres.mitigadas }
+  # P-32: mitigada = soporte de entrega del servicio O curso formativo (matriculada + asistió a una sesión formativa)
+  - { fase: 4, meta: Personas atendidas en mitigación de barreras, actual: uniones.mitigacion.personas, ayuda: Con soporte de entrega del servicio de mitigación o con un curso formativo (acelerada) }
+  - { fase: 4, meta: Mujeres atendidas en mitigación de barreras,  actual: uniones.mitigacion.mujeres }
   # P5 Vinculación laboral
   - { fase: 5, meta: Personas vinculadas laboralmente,             actual: empleabilidad.colocados }
   - { fase: 5, meta: Mujeres vinculadas laboralmente,              actual: empleabilidad.colocados_mujeres }
@@ -80,7 +81,7 @@ cifras:
   - { label: Personas registradas,     valor: "formularios[recorrer-pnud].personas" }
   - { label: Mujeres registradas,      valor: "formularios[recorrer-pnud].mujeres" }
   - { label: Postuladas a vacantes,    valor: empleabilidad.personas_postuladas_aliadas, ayuda: P3 · intermediación atribuible (A-16) }
-  - { label: Atendidas en mitigación,  valor: grupos.mitigadas }
+  - { label: Atendidas en mitigación,  valor: uniones.mitigacion.personas, ayuda: Soporte de mitigación o curso formativo }
   - { label: Vinculadas laboralmente,  valor: empleabilidad.colocados }
 ```
 
@@ -90,10 +91,13 @@ Orientación = hizo la **línea base** o asistió a una sesión de orientación 
 matriculada y asistió a una sesión formativa (D-33). Intermediación = postulaciones **atribuibles** al proyecto (A-16, P-08):
 a vacantes de empresas vinculadas a la cohorte o creadas para ella, más las externas que registra el equipo.
 `uniones` = etapas que se cumplen por al menos una condición; las cuenta la función pública (A-20) y Participantes.
+Mitigación (P-32, D-66) = tiene el soporte de entrega del servicio de mitigación **o** hizo un curso formativo; quien
+hace el curso también cuenta como acelerada (misma condición que Aceleración). Requiere la función pública v13 (A-41).
 
 ```yaml
 uniones:
   orientacion: [formulario:linea-base, asistencia:orientacion]
+  mitigacion: [documentos:mitigadas, asistencia_matriculado:formacion]
 embudo:
   - { etapa: Registro,       valor: "formularios[recorrer-pnud].personas" }
   - { etapa: Orientación,    valor: uniones.orientacion.personas, detalle: línea base }   # P-27
@@ -147,6 +151,7 @@ participantes:
   marcas:
     - { titulo: Hoja de vida, regla: hv, ayuda: Hoja de vida cargada en la plataforma }
     - { titulo: Perfilamiento, regla: "documentos:perfilamiento", despues: Orientación, ayuda: Informe individual de perfilamiento cargado en la Fase Documental }
+    - { titulo: Mitigación, regla: "union:mitigacion", despues: Aceleración, ayuda: Soporte de entrega del servicio de mitigación cargado o curso formativo (matriculada y asistió a una sesión formativa) }   # P-32
   # P-27 (D-65): vistas rápidas de Participantes. «Orientación» = hizo la línea base o asistió a una sesión de orientación.
   vistas:
     - { titulo: Registros sin línea base,     con: [Registro],      sin: [Orientación] }

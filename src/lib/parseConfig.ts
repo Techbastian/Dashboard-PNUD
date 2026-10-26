@@ -137,7 +137,7 @@ export function parseConfigMd(md: string): DashboardConfig {
     metas: c.metas ?? [],
     fases: Object.fromEntries(Object.entries(c.fases ?? {}).map(([k, v]) => [String(k), String(v)])),
     embudo: c.embudo ?? [],
-    participantes: validarParticipantes(c.participantes, c.embudo),
+    participantes: validarParticipantes(c.participantes, c.embudo, c.uniones),
     catalogo: validarCatalogo(c.catalogo),
     distribuciones: c.distribuciones ?? {},
     secciones: c.secciones ?? ['metas', 'cifras', 'embudo', 'personas'],
@@ -159,10 +159,10 @@ function validarEmpresas(e: unknown): DashboardConfig['empresas'] {
   return { diagnostico, sensibilizada };
 }
 
-/** Condiciones que entiende la función pública en `uniones` (A-20) — mismas que las reglas por persona. */
-const CONDICION = /^(formulario:[^|:\s]+|asistencia(:[A-Za-z0-9_-]+)?|matriculado)$/;
+/** Condiciones que entiende la función pública en `uniones` (A-20; v13 A-41: + documentos y asistencia_matriculado) — mismas que las reglas por persona. */
+const CONDICION = /^(formulario:[^|:\s]+|asistencia(_matriculado)?(:[A-Za-z0-9_-]+)?|matriculado|documentos:[A-Za-z0-9_-]+)$/;
 /** Reglas que sirven como marca de Participantes (por persona; src/lib/etapas.ts). */
-const REGLA_MARCA = /^(hv|registro|matriculado|postulado|postulado_proyecto|colocado|formulario:[^|:\s]+|asistencia(_matriculado)?(:[A-Za-z0-9_-]+)?|documentos:[A-Za-z0-9_-]+)(\|.+)?$/;
+const REGLA_MARCA = /^(hv|registro|matriculado|postulado|postulado_proyecto|colocado|formulario:[^|:\s]+|asistencia(_matriculado)?(:[A-Za-z0-9_-]+)?|documentos:[A-Za-z0-9_-]+|union:[A-Za-z0-9_-]+)(\|.+)?$/;
 
 function validarUniones(u: unknown, embudo: Etapa[] | undefined): Record<string, string[]> {
   const err = (m: string): never => { throw new Error(`dashboard.config.md: ${m}`); };
@@ -172,7 +172,7 @@ function validarUniones(u: unknown, embudo: Etapa[] | undefined): Record<string,
     if (!/^[A-Za-z0-9_-]{1,40}$/.test(id)) err(`uniones.${id}: el id solo admite letras, números, _ y -`);
     if (!Array.isArray(v) || v.length === 0 || v.length > 10) err(`uniones.${id} debe ser una lista de 1 a 10 condiciones`);
     out[id] = (v as unknown[]).map(x => String(x).trim());
-    out[id].forEach(x => { if (!CONDICION.test(x)) err(`uniones.${id}: «${x}» no es una condición válida (formulario:<slug>, asistencia[:<tipo>], matriculado)`); });
+    out[id].forEach(x => { if (!CONDICION.test(x)) err(`uniones.${id}: «${x}» no es una condición válida (formulario:<slug>, asistencia[:<tipo>], asistencia_matriculado[:<tipo>], matriculado, documentos:<grupo>)`); });
   }
   if (Object.keys(out).length > 20) err('uniones: máximo 20 (límite de la función pública)');
   (embudo ?? []).forEach((e, i) => {
@@ -191,13 +191,16 @@ export const MOTIVOS_POR_DEFECTO: Motivo[] = [
   { id: 'no_cumple_requisitos', label: 'No cumple requisitos' }, { id: 'otro', label: 'Otro' },
 ];
 
-function validarParticipantes(p: unknown, embudo: Etapa[] | undefined): DashboardConfig['participantes'] {
+function validarParticipantes(p: unknown, embudo: Etapa[] | undefined, uniones: unknown): DashboardConfig['participantes'] {
   const err = (m: string): never => { throw new Error(`dashboard.config.md: ${m}`); };
   const marcas = ((p as { marcas?: unknown } | undefined)?.marcas ?? []) as Partial<Marca>[];
   if (!Array.isArray(marcas)) err('participantes.marcas debe ser una lista');
   const out = marcas.map((m, i) => {
     if (!m?.titulo || !m.regla) err(`participantes.marcas[${i}] necesita titulo y regla`);
     if (!REGLA_MARCA.test(m.regla!.trim())) err(`participantes.marcas[${i}]: regla «${m.regla}» no existe`);
+    // D-66: `union:<id>` = la misma unión que cuenta la función pública (uniones.<id>)
+    for (const [, id] of m.regla!.matchAll(/(?:^|\|)\s*union:([A-Za-z0-9_-]+)/g))
+      if (!(uniones && typeof uniones === 'object' && id in uniones)) err(`participantes.marcas[${i}]: union:${id} no está en el bloque uniones`);
     if (m.despues != null && !(embudo ?? []).some(e => e.etapa === m.despues)) err(`participantes.marcas[${i}].despues: «${m.despues}» no es una etapa del embudo`);
     return { titulo: m.titulo!, regla: m.regla!.trim(), ayuda: m.ayuda, despues: m.despues };
   });

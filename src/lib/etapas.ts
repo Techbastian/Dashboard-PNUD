@@ -13,6 +13,7 @@
  *   postulado_proyecto             se postuló a una vacante de una empresa del proyecto, o externa (A-16)
  *   colocado                       tiene una colocación activa
  *   hv                             tiene hoja de vida cargada en la plataforma (candidates.cv_url) — para marcas (D-44)
+ *   union:<id>                     cumple alguna condición de config.uniones[id] — para marcas (D-66)
  *   pendiente                      sin fuente aún (no es "no")
  *
  * `a|b|c` = cumple AL MENOS UNA (D-44). Una etapa con `valor: uniones.<id>` toma su regla de `config.uniones[id]`,
@@ -100,6 +101,7 @@ export function evaluar(regla: string, p: Persona, d: DatosCohorte, ix: Indice):
     case 'postulado_proyecto': return ix.postuladoProyecto.has(p.id);
     case 'colocado': return ix.colocado.has(p.id);
     case 'hv': return tieneValor(p.hv);
+    case 'union': return config.uniones[arg] ? evaluar(config.uniones[arg].join('|'), p, d, ix) : null;
     default: return null;
   }
 }

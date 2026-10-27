@@ -2,14 +2,8 @@
 
 Estado: **v3 aprobado el 16-oct-2026 y construido** (plantilla 2.4.0, D-43; función pública v7, A-16 y A-17; P-08). Los datos de personas son ilustrativos; los de empresas y vacantes son cifras reales del 15-oct.
 
-| Archivo | Qué es |
-|---|---|
-| `dashboard_1_hitos.png` | Pestaña **Hitos** (primera) |
-| `dashboard_2_personas.png` | Pestaña **Personas** |
-| `dashboard_3_empresas.png` | Pestaña **Empresas** |
-| `informes_ejemplo.png` | Pantalla del módulo **Informes** |
-| `informe_ejemplo_PNUD_2026-10-15.xlsx` | **Ejemplo del Excel** que descarga Informes |
-| `dashboard_blueprint.html` | Fuente de las imágenes (`#hit`, `#per`, `#emp`, `#inf`) |
+Las maquetas (imágenes, `dashboard_blueprint.html` y el Excel de ejemplo) se borraron el 27-oct (P-34) porque ya está construido;
+siguen en el historial de git (commit anterior a P-34).
 
 ## Principio
 

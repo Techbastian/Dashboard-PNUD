@@ -27,6 +27,24 @@ export async function consultarStats(op: OpcionesStats = {}): Promise<PublicStat
 }
 
 /**
+ * Igual que consultarStats, pero con las preguntas en tandas (D-72): con todas a la vez la función pasa el límite de
+ * tiempo de la base («canceling statement due to statement timeout»). Cada tanda trae todo lo demás igual; las
+ * `respuestas` se juntan. Máximo 3 tandas a la vez para no cargar la base.
+ */
+export async function consultarStatsEnTandas(op: OpcionesStats = {}, tamano = 12): Promise<PublicStats> {
+  const ps = op.preguntas ?? [];
+  const tandas: Pregunta[][] = [];
+  for (let i = 0; i < ps.length; i += tamano) tandas.push(ps.slice(i, i + tamano));
+  if (!tandas.length) tandas.push([]);
+  const res: PublicStats[] = [];
+  for (let i = 0; i < tandas.length; i += 3) {
+    res.push(...await Promise.all(tandas.slice(i, i + 3).map(t => consultarStats({ ...op, preguntas: t }))));
+  }
+  const respuestas = Object.assign({}, ...res.map(r => (r.respuestas as Record<string, unknown> | undefined) ?? {}));
+  return { ...res[0], respuestas, equipo: res.every(r => r.equipo === true) };
+}
+
+/**
  * Datos en vivo (D-02, D-13): llama a dashboard_public_stats(cohortId, grupos, opciones) y re-consulta cada N segundos
  * (solo con la pestaña visible). Pide solo las preguntas que usan las pestañas del Dashboard.
  * En un re-fetch se conserva el dato anterior en pantalla (sin parpadeo de esqueleto).

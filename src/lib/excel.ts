@@ -20,8 +20,11 @@ export async function descargarXlsx(archivo: string, hojas: Hoja<unknown>[]) {
   XLSX.writeFile(wb, archivo);
 }
 
-/** Hoja libre: filas ya armadas (varias tablas una debajo de otra, como el informe por pregunta de Informes). */
-export interface HojaLibre { nombre: string; filas: (string | number | null)[][]; anchos?: number[] }
+/**
+ * Hoja libre: filas ya armadas (varias tablas una debajo de otra, como el informe por pregunta de Informes).
+ * `enlaces` = índices de columna cuyas celdas con URL quedan como hipervínculo (p. ej. la hoja de vida).
+ */
+export interface HojaLibre { nombre: string; filas: (string | number | null)[][]; anchos?: number[]; enlaces?: number[] }
 
 export async function descargarHojas(archivo: string, hojas: HojaLibre[]) {
   const XLSX = await import('xlsx');
@@ -29,6 +32,10 @@ export async function descargarHojas(archivo: string, hojas: HojaLibre[]) {
   for (const h of hojas) {
     const ws = XLSX.utils.aoa_to_sheet(h.filas.map(f => f.map(v => v ?? '')));
     if (h.anchos) ws['!cols'] = h.anchos.map(wch => ({ wch }));
+    for (const c of h.enlaces ?? []) h.filas.forEach((f, r) => {
+      const v = f[c];
+      if (typeof v === 'string' && /^https?:\/\//i.test(v)) ws[XLSX.utils.encode_cell({ r, c })].l = { Target: v };
+    });
     XLSX.utils.book_append_sheet(wb, ws, h.nombre.replace(/[\\/?*[\]:]/g, ' ').slice(0, 31));
   }
   XLSX.writeFile(wb, archivo);

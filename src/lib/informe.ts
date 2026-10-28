@@ -1,17 +1,29 @@
 /**
  * Informe de conteos (D-43, módulo Informes): arma las hojas del Excel desde la respuesta de dashboard_public_stats
- * con TODAS las preguntas de la config. Solo conteos: sin datos personales (los nombres están en Listados).
- * Qué hojas lleva y en qué orden lo dice `informe.hojas` de la config.
+ * con las preguntas de las hojas elegidas. Qué hojas lleva y en qué orden lo dice `informe.hojas` de la config.
+ * D-72: opcionalmente, junto a cada hoja con `preguntas`, una hoja «· personas» con la respuesta de cada persona a
+ * esos formularios (todas las preguntas, también texto libre) y el enlace a su hoja de vida. Esa sí lleva datos personales.
  */
 import { config } from './config';
 import type { HojaInforme, Pregunta } from './config';
 import { resolver } from './ruta';
-import { fueraDeFoco, personasFueraDeFoco, respuesta } from './respuestas';
+import { enFoco, fueraDeFoco, personasFueraDeFoco, respuesta } from './respuestas';
 import { estadoMeta } from '../ui/Graficos';
+import { respuestaDe, type DatosCohorte } from './datos';
+import { diaBogota } from './formato';
 import type { HojaLibre } from './excel';
 import type { PublicStats } from './usePublicStats';
 
-export interface OpcionesInforme { genero: boolean; corte: string | null; alcance: string }
+export type Alcance = 'todos' | 'foco' | 'fuera';
+export interface OpcionesInforme {
+  genero: boolean; corte: string | null; alcance: string;
+  /** Nombres de las hojas elegidas (la Portada va siempre). */
+  hojas: string[];
+  /** D-72: datos privados de la cohorte para las hojas «· personas»; null = solo conteos. */
+  personas: DatosCohorte | null;
+  /** Mismo filtro territorial que se pidió a la función, para las hojas «· personas». */
+  foco: Alcance;
+}
 type Fila = (string | number | null)[];
 
 const pctTxt = (n: number, d: number) => (d > 0 ? Math.round((n / d) * 1000) / 10 : 0);
@@ -93,8 +105,64 @@ function hoja(s: PublicStats, h: HojaInforme, op: OpcionesInforme): HojaLibre {
   return { nombre: h.nombre, filas, anchos: [58, 10, 8, 10, 8, 10, 8] };
 }
 
+/** Título de columna: sin markdown (negritas, enlaces) y corto; el texto completo está en el formulario. */
+const tituloColumna = (t: string) => {
+  const x = t.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/[*_#`>]+/g, '').replace(/\s+/g, ' ').trim();
+  return x.length > 120 ? `${x.slice(0, 117).trim()}…` : x;
+};
+
+const textoRespuesta = (v: unknown): string | number | null => {
+  if (v == null || v === '') return null;
+  if (Array.isArray(v)) return v.map(x => (typeof x === 'object' ? JSON.stringify(x) : String(x))).join('; ');
+  if (typeof v === 'boolean') return v ? 'Sí' : 'No';
+  if (typeof v === 'number') return v;
+  return typeof v === 'object' ? JSON.stringify(v) : String(v);
+};
+
+/** ¿La persona entra con el filtro territorial? Mismo criterio que la función: «fuera» = no coincide (incluye sin dato). */
+function pasaFoco(d: DatosCohorte, r: DatosCohorte['personas'][number], alcance: Alcance): boolean {
+  const foco = config.foco;
+  const pf = foco?.personas ? config.preguntas.find(p => p.id === foco.personas) : undefined;
+  if (alcance === 'todos' || !foco || !pf?.clave) return true;
+  const fm = d.formularios.find(f => f.slug === pf.bloque || f.bloque === pf.bloque);
+  const resp = fm ? r.respuestas[fm.bloque] : undefined;
+  const q = fm?.preguntas.find(x => x.clave === pf.clave);
+  const v = resp ? (q ? respuestaDe(resp, q) : resp[pf.clave]) : undefined;
+  const dentro = v != null && enFoco((Array.isArray(v) ? v : [v]).join(' '), foco);
+  return alcance === 'foco' ? dentro : !dentro;
+}
+
+/** D-72: una fila por persona que respondió alguno de los formularios de la hoja, con todas sus respuestas y la hoja de vida. */
+function hojaPersonas(d: DatosCohorte, h: HojaInforme, op: OpcionesInforme): HojaLibre | null {
+  if (!h.preguntas) return null;
+  const bloques = new Set(config.preguntas.filter(q => q.grupo === h.preguntas).map(q => q.bloque));
+  const forms = d.formularios.filter(f => bloques.has(f.slug) || bloques.has(f.bloque));
+  if (!forms.length) return null;
+  const personas = d.personas
+    .filter(p => forms.some(f => p.respuestas[f.bloque]))
+    .filter(p => !op.corte || (p.registradaEl != null && diaBogota(p.registradaEl) <= op.corte))
+    .filter(p => pasaFoco(d, p, op.foco))
+    .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  const fijas = ['Nombre', 'Tipo doc.', 'Documento', 'Correo', 'Celular', 'Ciudad', 'Género', 'Registro', 'Hoja de vida (enlace)'];
+  const preguntas = forms.flatMap(f => f.preguntas.map(q => ({ f, q })));
+  const cab = [...fijas, ...preguntas.map(({ f, q }) => (forms.length > 1 ? `${f.nombre} · ` : '') + tituloColumna(q.etiqueta))];
+  const filas: Fila[] = personas.map(p => [
+    p.nombre, p.tipoDoc, p.documento, p.correo, p.celular, p.ciudad, p.genero, p.registradaEl ? diaBogota(p.registradaEl) : null, p.hv,
+    ...preguntas.map(({ f, q }) => { const r = p.respuestas[f.bloque]; return r ? textoRespuesta(respuestaDe(r, q)) : null; }),
+  ]);
+  const base = h.nombre.length > 21 ? h.nombre.slice(0, 21).trim() : h.nombre;
+  return {
+    nombre: `${base} · personas`, filas: [cab, ...filas], enlaces: [fijas.indexOf('Hoja de vida (enlace)')],
+    anchos: [32, 9, 14, 30, 14, 16, 12, 12, 40, ...preguntas.map(() => 28)],
+  };
+}
+
 export function armarInforme(s: PublicStats, op: OpcionesInforme): HojaLibre[] {
-  const hojas = config.informe.hojas.map(h => hoja(s, h, op));
+  const elegidas = config.informe.hojas.filter(h => op.hojas.includes(h.nombre));
+  const hojas = elegidas.flatMap(h => {
+    const hp = op.personas ? hojaPersonas(op.personas, h, op) : null;
+    return hp ? [hoja(s, h, op), hp] : [hoja(s, h, op)];
+  });
   const generado = new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota' });
   const portada: HojaLibre = {
     nombre: 'Portada', anchos: [34, 90],
@@ -106,14 +174,17 @@ export function armarInforme(s: PublicStats, op: OpcionesInforme): HojaLibre[] {
       ['Desagregación', op.genero ? 'Total, mujeres y hombres' : 'Solo total'],
       ['Personas en el informe', valor(s, 'postulaciones.personas')],
       [],
-      ['Hojas'], ...config.informe.hojas.map(h => [h.nombre, h.descripcion ?? '']),
+      ['Hojas'], ...hojas.map(h => [h.nombre, elegidas.find(x => x.nombre === h.nombre)?.descripcion
+        ?? 'Una fila por persona: sus respuestas a todas las preguntas del formulario y el enlace a su hoja de vida']),
       [],
       ['Cómo leerlo'],
       ['', 'Cada pregunta es una tabla: categoría, total y % (y mujeres / hombres si se eligió).'],
       ['', 'El % se calcula sobre quienes respondieron la pregunta. «Universo» dice quién debía responderla (p. ej. solo quien tiene la línea base, o solo quien respondió «Ninguno» en la pregunta anterior).'],
       ['', 'Las opciones en 0 se muestran para que se vea todo el formulario. El texto libre no va aquí: se consulta en Listados.'],
       ['', 'El corte por fecha aplica a las personas (fecha de registro) y a sus respuestas; las metas de empresas y eventos van a la fecha de hoy.'],
-      ['', 'Solo conteos: este archivo no tiene datos personales.'],
+      ['', op.personas
+        ? 'ESTE ARCHIVO TIENE DATOS PERSONALES (hojas «· personas»): compártelo solo con quien lo necesite.'
+        : 'Solo conteos: este archivo no tiene datos personales.'],
     ],
   };
   return [portada, ...hojas];

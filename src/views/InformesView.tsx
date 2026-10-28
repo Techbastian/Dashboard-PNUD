@@ -1,19 +1,22 @@
 /**
  * Informes (E8, D-43): solo equipo. Descarga el detalle que no está en el Dashboard.
- *   · Excel = una hoja por tema y una tabla por pregunta (conteos, sin datos personales), armado desde
- *     dashboard_public_stats con TODAS las preguntas de la config. Corte y filtro territorial: la función solo
- *     los aplica con sesión del equipo (A-17).
+ *   · Excel = una hoja por tema y una tabla por pregunta (conteos), armado desde dashboard_public_stats con las
+ *     preguntas de las hojas elegidas, en tandas (D-72). Corte y filtro territorial: la función solo los aplica con
+ *     sesión del equipo (A-17).
+ *   · Opcional (D-72): junto a cada hoja de formulario, una hoja «· personas» con las respuestas de cada persona y el
+ *     enlace a su hoja de vida (datos personales, de la capa privada).
  *   · PDF ejecutivo = las pestañas del Dashboard, una por página (diálogo de impresión del navegador).
  */
 import { useState } from 'react';
 import { Download, FileText, Loader2, Eye } from 'lucide-react';
 import { config } from '../lib/config';
-import { consultarStats, type OpcionesStats } from '../lib/usePublicStats';
-import { armarInforme } from '../lib/informe';
+import { consultarStatsEnTandas, type OpcionesStats } from '../lib/usePublicStats';
+import { armarInforme, type Alcance } from '../lib/informe';
 import { descargarHojas, type HojaLibre } from '../lib/excel';
+import { useCohorte } from '../lib/datos';
 import { Aviso } from '../ui/Privado';
 
-type Alcance = 'todos' | 'foco' | 'fuera';
+const MAX_PREVIA = 200;
 const slug = (t: string) => t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
 export default function InformesView() {
@@ -22,6 +25,8 @@ export default function InformesView() {
   const [corte, setCorte] = useState('');
   const [alcance, setAlcance] = useState<Alcance>('todos');
   const [genero, setGenero] = useState(true);
+  const [conPersonas, setConPersonas] = useState(false);
+  const cohorte = useCohorte();
   const [hojas, setHojas] = useState<string[]>(() => config.informe.hojas.map(h => h.nombre));
   const [trabajando, setTrabajando] = useState<'excel' | 'previa' | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -32,17 +37,25 @@ export default function InformesView() {
     : alcance === 'foco' ? `Solo ${foco?.nombre}` : `Solo fuera de ${foco?.nombre}`;
 
   async function generar(): Promise<HojaLibre[]> {
-    const op: OpcionesStats = { preguntas: config.preguntas, hasta: corte || undefined };
+    if (conPersonas && !cohorte.datos) {
+      throw new Error(cohorte.error ? `No se pudieron cargar los datos de las personas: ${cohorte.error}`
+        : 'Los datos de las personas aún se están cargando. Intenta de nuevo en unos segundos.');
+    }
+    // Solo las preguntas de las hojas elegidas (y la del foco, que usa la hoja de alertas).
+    const grupos = new Set(config.informe.hojas.filter(h => hojas.includes(h.nombre)).map(h => h.preguntas).filter(Boolean));
+    const preguntas = config.preguntas.filter(p => grupos.has(p.grupo) || p.id === pFoco?.id);
+    const op: OpcionesStats = { preguntas, hasta: corte || undefined };
     if (alcance !== 'todos' && foco && pFoco?.clave) {
       op.filtro = { bloque: pFoco.bloque, clave: pFoco.clave, contiene: foco.coincide, excluir: alcance === 'fuera' };
     }
-    const stats = await consultarStats(op);
+    const stats = await consultarStatsEnTandas(op);
     if (stats.equipo !== true && (op.hasta || op.filtro)) {
       throw new Error('La base no reconoció tu sesión del equipo: el corte y el filtro no se aplicaron. Vuelve a entrar con «Acceso equipo».');
     }
-    const elegidas = new Set(hojas);
-    const todo = armarInforme(stats, { genero, corte: corte || null, alcance: textoAlcance });
-    return todo.filter(h => h.nombre === 'Portada' || elegidas.has(h.nombre));
+    return armarInforme(stats, {
+      genero, corte: corte || null, alcance: textoAlcance, hojas, foco: alcance,
+      personas: conPersonas ? cohorte.datos : null,
+    });
   }
 
   async function correr(tipo: 'excel' | 'previa') {
@@ -66,7 +79,7 @@ export default function InformesView() {
       <div className="glass-card p-6 space-y-5">
         <div>
           <h3 className="text-sm font-black text-slate-800">Generar informe</h3>
-          <p className="text-[11px] font-bold text-slate-400 mt-0.5">Solo conteos, sin datos personales. Los nombres están en Listados.</p>
+          <p className="text-[11px] font-bold text-slate-400 mt-0.5">Conteos por pregunta. Las respuestas de cada persona son opcionales (abajo).</p>
         </div>
         <label className="block">
           <span className={etiqueta}>Fecha de corte (registro)</span>
@@ -85,6 +98,16 @@ export default function InformesView() {
         <label className="flex items-center gap-2.5 text-sm font-bold text-slate-700">
           <input type="checkbox" checked={genero} onChange={e => setGenero(e.target.checked)} className="size-4 accent-[var(--color-brand)]" />
           Desagregar por género (mujeres / hombres)
+        </label>
+        <label className="flex items-start gap-2.5 text-sm font-bold text-slate-700">
+          <input type="checkbox" checked={conPersonas} onChange={e => setConPersonas(e.target.checked)} className="size-4 mt-0.5 accent-[var(--color-brand)]" />
+          <span>
+            Incluir las respuestas de cada persona y el enlace a su hoja de vida
+            <span className="block text-[11px] font-medium text-slate-400">
+              Agrega una hoja «· personas» junto a cada formulario elegido. Lleva datos personales: compártelo solo con quien lo necesite.
+              {conPersonas && !cohorte.datos && !cohorte.error && ' Cargando personas…'}
+            </span>
+          </span>
         </label>
         <fieldset>
           <legend className={etiqueta}>Hojas del informe</legend>
@@ -135,9 +158,9 @@ export default function InformesView() {
             <div className="overflow-x-auto max-h-[70vh] overflow-y-auto">
               <table className="w-full text-[12px]">
                 <tbody>
-                  {previa[verHoja].filas.map((f, i) => {
+                  {previa[verHoja].filas.slice(0, MAX_PREVIA).map((f, i) => {
                     const titulo = f.length === 1 && i > 0 && previa[verHoja].filas[i + 1]?.length === 1;
-                    const cab = f[0] === 'Categoría' || f[0] === 'Producto';
+                    const cab = f[0] === 'Categoría' || f[0] === 'Producto' || (i === 0 && previa[verHoja].enlaces != null);
                     return (
                       <tr key={i} className={cab ? 'border-b border-slate-200' : ''}>
                         {f.length === 0 ? <td className="py-2" /> : f.map((c, j) => (
@@ -153,6 +176,9 @@ export default function InformesView() {
                 </tbody>
               </table>
             </div>
+            {previa[verHoja].filas.length > MAX_PREVIA && (
+              <p className="text-[11px] font-bold text-slate-400">Vista previa de las primeras {MAX_PREVIA} filas de {previa[verHoja].filas.length}; el Excel las lleva todas.</p>
+            )}
           </>
         )}
       </div>

@@ -9,8 +9,8 @@
  */
 import { useCallback, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Download, ExternalLink, FileCheck2, FileX2, Loader2, X } from 'lucide-react';
-import { useCohorte, estadoActual, type Persona, type DatosCohorte, type CambioEstado } from '../lib/datos';
+import { AlertTriangle, CheckCircle2, Download, ExternalLink, FileCheck2, FileX2, Loader2, X } from 'lucide-react';
+import { useCohorte, estadoActual, estadoFormulario, type Persona, type DatosCohorte, type CambioEstado } from '../lib/datos';
 import { etapasConRegla, evaluar, indexar, etapaActual, nombreEtapa, type Resultado } from '../lib/etapas';
 import { fecha, diaBogota, diaLargo, hora, humano, norm, num } from '../lib/formato';
 import { descargarXlsx, hoja, type Columna } from '../lib/excel';
@@ -381,12 +381,18 @@ function Ficha({ f, datos, onCerrar }: { f: Fila; datos: DatosCohorte; onCerrar:
       <BloqueFicha titulo="Formularios">
         <ul className="space-y-1.5">
           {datos.formularios.map(fm => {
-            const r = p.respuestas[fm.bloque];
-            const n = r ? Object.values(r).filter(v => v != null && String(v).trim() !== '').length : 0;
+            // Sin conteo de respuestas (generaba dudas): OK si respondió todas las obligatorias que le aparecen, ⚠ si falta alguna.
+            const { estado, faltan } = estadoFormulario(fm, p.respuestas[fm.bloque]);
             return (
               <li key={fm.bloque} className="flex items-center justify-between gap-3 text-sm">
                 <span className="font-bold text-slate-700">{humano(fm.nombre)}</span>
-                {r ? <Etiqueta tono="emerald">{n} respuestas</Etiqueta> : <Etiqueta>Sin responder</Etiqueta>}
+                {estado === 'ok' && <Etiqueta tono="emerald"><CheckCircle2 size={11} className="inline -mt-0.5 mr-1" />OK</Etiqueta>}
+                {estado === 'incompleto' && (
+                  <span title={`Le faltan obligatorias:\n• ${faltan.join('\n• ')}`} className="cursor-help">
+                    <Etiqueta tono="amber"><AlertTriangle size={11} className="inline -mt-0.5 mr-1" />Incompleto</Etiqueta>
+                  </span>
+                )}
+                {estado === 'sin' && <Etiqueta>Sin responder</Etiqueta>}
               </li>
             );
           })}

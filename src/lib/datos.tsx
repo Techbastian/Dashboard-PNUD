@@ -63,7 +63,11 @@ export interface AsistenciaEmpresa { id: string; eventoId: string; empresaId: st
 export type TipoEvidencia = 'agenda' | 'asistencia' | 'fotografia' | 'otro';
 /** Evidencia de un evento (A-10): archivo en el bucket privado `evidencias-eventos` o enlace. */
 export interface Evidencia { id: string; eventoId: string; tipo: TipoEvidencia; nombre: string | null; ruta: string | null; url: string | null; subidoPor: string | null; fecha: string }
-export interface Pregunta { clave: string; etiqueta: string; tipo: string }
+/** `id` y `mostrarSi` vienen del formulario de la plataforma (`showWhen`: la pregunta solo aparece si `campo` tiene uno de `valores`). */
+export interface Pregunta {
+  id: string; clave: string; etiqueta: string; tipo: string; obligatoria: boolean;
+  mostrarSi: { campo: string; valores: string[] } | null;
+}
 /** Llamada o contacto directo con la persona (participant_contacts, A-25, D-51). Aquí van las observaciones del equipo. */
 export type ResultadoLlamada = 'contesto' | 'no_contesto' | 'buzon_ocupado' | 'numero_errado' | 'llamar_despues' | 'no_continua';
 export type CanalContacto = 'llamada' | 'whatsapp' | 'presencial' | 'correo' | 'otro';
@@ -171,6 +175,40 @@ export function claveDePregunta(q: { slug?: string | null; label?: string | null
   return sinTildes.replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 60).replace(/_+$/, '');
 }
 
+/**
+ * Respuesta de una pregunta. La plataforma guarda la clave cortada a 60 caracteres sin quitar el «_» final, y si la
+ * pregunta cambió de texto después, la respuesta queda con la clave del texto viejo: se acepta la clave guardada
+ * (≥ 20 caracteres) que sea el comienzo del texto completo de la pregunta.
+ */
+export function respuestaDe(r: Record<string, unknown>, q: Pregunta): unknown {
+  if (r[q.clave] !== undefined) return r[q.clave];
+  if (r[`${q.clave}_`] !== undefined) return r[`${q.clave}_`];
+  if (q.clave !== claveDePregunta({ label: q.etiqueta })) return undefined; // con slug propio: solo su clave
+  const largo = q.etiqueta.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^_+/, '');
+  const k = Object.keys(r).find(k => k.length >= 20 && largo.startsWith(k.replace(/_+$/, '')));
+  return k ? r[k] : undefined;
+}
+
+const lleno = (v: unknown) => v != null && (Array.isArray(v) ? v.length > 0 : String(v).trim() !== '');
+
+/**
+ * Estado de un formulario para una persona: `sin` = no lo abrió; `ok` = respondió todas las obligatorias que le
+ * aparecen (las condicionales cuentan solo si se cumple su condición); `incompleto` = le falta alguna (`faltan`).
+ */
+export function estadoFormulario(fm: Formulario, r: Record<string, unknown> | undefined): { estado: 'sin' | 'ok' | 'incompleto'; faltan: string[] } {
+  if (!r) return { estado: 'sin', faltan: [] };
+  const porId = new Map(fm.preguntas.map(q => [q.id, q]));
+  const visible = (q: Pregunta, n = 0): boolean => {
+    if (!q.mostrarSi) return true;
+    const c = porId.get(q.mostrarSi.campo);
+    if (!c || n > 20 || !visible(c, n + 1)) return false;
+    const v = respuestaDe(r, c);
+    return (Array.isArray(v) ? v : [v]).some(x => q.mostrarSi!.valores.includes(String(x)));
+  };
+  const faltan = fm.preguntas.filter(q => q.obligatoria && visible(q) && !lleno(respuestaDe(r, q))).map(q => q.etiqueta.replace(/\s+/g, ' ').trim());
+  return { estado: faltan.length ? 'incompleto' : 'ok', faltan };
+}
+
 type Fila = Record<string, unknown>;
 
 /** Género como lo ve la persona en el formulario (la plataforma guarda `femenino`, `no_binario`, …). */
@@ -212,9 +250,14 @@ async function cargarTodo(): Promise<DatosCohorte> {
     bloque,
     slug: String(b.slug_application ?? bloque),
     nombre: String(b.title ?? b.name ?? b.slug_application ?? bloque),
-    preguntas: ((b.dimensions ?? []) as Fila[]).flatMap(d => ((d.questions ?? []) as Fila[]).map(q => ({
-      clave: claveDePregunta(q as { slug?: string; label?: string }), etiqueta: String(q.label ?? ''), tipo: String(q.type ?? ''),
-    }))),
+    preguntas: ((b.dimensions ?? []) as Fila[]).flatMap(d => ((d.questions ?? []) as Fila[]).map(q => {
+      const sw = q.showWhen as { fieldId?: string; values?: unknown[] } | null | undefined;
+      return {
+        id: String(q.id ?? ''), clave: claveDePregunta(q as { slug?: string; label?: string }), etiqueta: String(q.label ?? ''), tipo: String(q.type ?? ''),
+        obligatoria: q.required === true,
+        mostrarSi: sw?.fieldId ? { campo: sw.fieldId, valores: (sw.values ?? []).map(String) } : null,
+      };
+    })),
   }));
 
   // A-22: exclusiones de la cohorte. Las personas excluidas no entran a ninguna vista (igual que en la función pública v10).

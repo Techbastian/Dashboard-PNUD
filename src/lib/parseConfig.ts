@@ -130,6 +130,8 @@ export interface ResumenDiario {
   etiquetas: Record<string, string>;
   /** métricas que no aplican al proyecto. */
   ocultar: string[];
+  /** métrica → nota: la cifra se calcula distinto que en el dashboard y el correo la marca con ⚠. */
+  alertas: Record<string, string>;
 }
 
 export function parseConfigMd(md: string): DashboardConfig {
@@ -166,7 +168,7 @@ export function parseConfigMd(md: string): DashboardConfig {
 
 function validarResumenDiario(r: unknown): ResumenDiario {
   const err = (m: string): never => { throw new Error(`dashboard.config.md: resumenDiario.${m}`); };
-  const x = (r ?? {}) as { formularios?: unknown; etiquetas?: unknown; ocultar?: unknown };
+  const x = (r ?? {}) as { formularios?: unknown; etiquetas?: unknown; ocultar?: unknown; alertas?: unknown };
   const mapa = (v: unknown, nombre: string): Record<string, string> => {
     if (v == null) return {};
     if (typeof v !== 'object' || Array.isArray(v)) return err(`${nombre} debe ser un mapa clave: nombre`);
@@ -174,9 +176,12 @@ function validarResumenDiario(r: unknown): ResumenDiario {
   };
   const etiquetas = mapa(x.etiquetas, 'etiquetas');
   const ocultar = x.ocultar == null ? [] : Array.isArray(x.ocultar) ? x.ocultar.map(String) : err('ocultar debe ser una lista');
-  const malas = [...Object.keys(etiquetas), ...ocultar].filter(k => !(METRICAS_RESUMEN as readonly string[]).includes(k));
-  if (malas.length) err(`métricas desconocidas: ${malas.join(', ')} (válidas: ${METRICAS_RESUMEN.join(', ')})`);
-  return { formularios: mapa(x.formularios, 'formularios'), etiquetas, ocultar };
+  const alertas = mapa(x.alertas, 'alertas');
+  // un formulario se nombra `formulario:<slug>`
+  const malas = [...Object.keys(etiquetas), ...ocultar, ...Object.keys(alertas)]
+    .filter(k => !k.startsWith('formulario:') && !(METRICAS_RESUMEN as readonly string[]).includes(k));
+  if (malas.length) err(`métricas desconocidas: ${malas.join(', ')} (válidas: ${METRICAS_RESUMEN.join(', ')} o formulario:<slug>)`);
+  return { formularios: mapa(x.formularios, 'formularios'), etiquetas, ocultar, alertas };
 }
 
 function validarEmpresas(e: unknown): DashboardConfig['empresas'] {

@@ -3,13 +3,14 @@
  * y sus vacantes de la cohorte. Va aparte del proceso de las personas (Colocación). Privada: trae contactos.
  * D-61: con `empresas.diagnostico: true` en la config, columna, filtro y enlace al diagnóstico de cada empresa (A-31).
  * D-64: con `empresas.sensibilizada: diagnostico`, sensibilizada = con diagnóstico: una sola cifra y una sola columna.
+ * D-67: dos pestañas, Empresas y Vacantes (todas las vacantes de la cohorte en una tabla; clic en la empresa abre su ficha).
  */
 import { Fragment, useState } from 'react';
 import { ChevronDown, ChevronRight, ExternalLink, FileCheck2, Mail, Phone, User } from 'lucide-react';
-import { useCohorte, type Empresa, type Evento } from '../lib/datos';
+import { useCohorte, type Empresa, type Evento, type Vacante } from '../lib/datos';
 import { config } from '../lib/config';
 import { fecha, humano, norm, num } from '../lib/formato';
-import { BarraDatos, Buscador, Cargando, ErrorDatos, Etiqueta, Vacio } from '../ui/Privado';
+import { BarraDatos, Buscador, Cargando, ErrorDatos, Etiqueta, Pestanas, Vacio } from '../ui/Privado';
 import { KPICard } from '../ui/Comunes';
 
 export default function EmpresasView() {
@@ -19,6 +20,7 @@ export default function EmpresasView() {
   const [soloConVacantes, setSoloConVacantes] = useState(false);
   const [diag, setDiag] = useState<'todas' | 'con' | 'sin'>('todas');
   const [abierta, setAbierta] = useState<string | null>(null);
+  const [tab, setTab] = useState<'empresas' | 'vacantes'>('empresas');
   if (error && !datos) return <ErrorDatos error={error} />;
   if (!datos) return <Cargando />;
 
@@ -44,6 +46,11 @@ export default function EmpresasView() {
   const columnas = ['', 'Empresa', 'Tamaño', 'Sector', 'Municipios', ...(porDiagnostico ? [] : ['Sensibilizada']),
     ...(conDiagnostico ? [porDiagnostico ? 'Sensibilizada · diagnóstico' : 'Diagnóstico'] : []), 'Vacantes'];
   const nCifras = 4 + (porEvento ? 1 : 0) + (conDiagnostico ? 1 : 0);
+  // Desde Vacantes: vuelve a Empresas con la ficha abierta, sin filtros que la escondan.
+  const abrirEmpresa = (id: string) => {
+    setQ(''); setTamano('todos'); setSoloConVacantes(false); setDiag('todas'); setAbierta(id); setTab('empresas');
+    setTimeout(() => document.getElementById(`empresa-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 0);
+  };
 
   return (
     <div className={`space-y-6 ${cargando ? 'opacity-80' : ''}`}>
@@ -57,6 +64,8 @@ export default function EmpresasView() {
         <KPICard label="Cargos" value={num(vacantes.length)} color="text-qsd-purple" />
         <KPICard label="Puestos" value={num(vacantes.reduce((s, v) => s + v.puestos, 0))} color="text-qsd-teal" />
       </div>
+      <Pestanas activa={tab} onCambio={setTab} opciones={[{ key: 'empresas', label: 'Empresas', n: datos.empresas.length }, { key: 'vacantes', label: 'Vacantes', n: vacantes.length }]} />
+      {tab === 'vacantes' ? <TablaVacantes empresas={datos.empresas} onEmpresa={abrirEmpresa} /> : <>
       <div className="flex flex-wrap items-center gap-3">
         <Buscador valor={q} onCambio={setQ} placeholder="Buscar empresa, NIT, sector, municipio o contacto…" />
         <select value={tamano} onChange={e => setTamano(e.target.value)} aria-label="Tamaño" className="bg-white border border-slate-100 rounded-2xl px-4 py-2.5 text-xs font-bold text-slate-600">
@@ -81,7 +90,7 @@ export default function EmpresasView() {
             <tbody className="divide-y divide-gray-50">
               {visibles.map(e => (
                 <Fragment key={e.id}>
-                  <tr className="hover:bg-gray-50/60 cursor-pointer align-top" onClick={() => setAbierta(a => (a === e.id ? null : e.id))}>
+                  <tr id={`empresa-${e.id}`} className="hover:bg-gray-50/60 cursor-pointer align-top" onClick={() => setAbierta(a => (a === e.id ? null : e.id))}>
                     <td className="pl-4 py-3 text-slate-300">{abierta === e.id ? <ChevronDown size={16} /> : <ChevronRight size={16} />}</td>
                     <td className="px-4 py-3"><p className="text-sm font-bold text-slate-800">{e.nombre}</p><p className="text-[11px] text-slate-400">NIT {e.nit}{/^P/i.test(e.nit) ? ' · provisional' : ''}</p></td>
                     <td className="px-4 py-3 text-xs text-slate-600">{e.tamano ?? '—'}</td>
@@ -103,8 +112,61 @@ export default function EmpresasView() {
         </div>
         {visibles.length === 0 && <Vacio texto="Ninguna empresa coincide" />}
       </div>
+      </>}
     </div>
   );
+}
+
+/** D-67: todas las vacantes de la cohorte, con buscador por cargo, empresa o ciudad y filtros de estado y modalidad. */
+function TablaVacantes({ empresas, onEmpresa }: { empresas: Empresa[]; onEmpresa: (id: string) => void }) {
+  const [q, setQ] = useState('');
+  const [estado, setEstado] = useState('todos');
+  const [modalidad, setModalidad] = useState('todas');
+  const filas: { v: Vacante; e: Empresa }[] = empresas.flatMap(e => e.vacantes.map(v => ({ v, e })))
+    .sort((a, b) => a.e.nombre.localeCompare(b.e.nombre, 'es') || a.v.titulo.localeCompare(b.v.titulo, 'es'));
+  const estados = [...new Set(filas.map(f => f.v.estado ?? 'Sin dato'))];
+  const modalidades = [...new Set(filas.map(f => f.v.modalidad ?? 'Sin dato'))];
+  const visibles = filas.filter(({ v, e }) =>
+    (estado === 'todos' || (v.estado ?? 'Sin dato') === estado) && (modalidad === 'todas' || (v.modalidad ?? 'Sin dato') === modalidad) &&
+    (!q.trim() || [v.titulo, e.nombre, e.razonSocial, ...v.ciudades].some(x => norm(x).includes(norm(q)))));
+  const columnas = ['Cargo', 'Empresa', 'Ciudades', 'Modalidad', 'Contrato', 'Salario', 'Puestos', 'Estado'];
+  const selector = 'bg-white border border-slate-100 rounded-2xl px-4 py-2.5 text-xs font-bold text-slate-600';
+  return <>
+    <div className="flex flex-wrap items-center gap-3">
+      <Buscador valor={q} onCambio={setQ} placeholder="Buscar cargo, empresa o ciudad…" />
+      <select value={estado} onChange={ev => setEstado(ev.target.value)} aria-label="Estado" className={selector}>
+        <option value="todos">Todos los estados</option>{estados.map(x => <option key={x} value={x}>{x === 'Sin dato' ? x : humano(x)}</option>)}
+      </select>
+      <select value={modalidad} onChange={ev => setModalidad(ev.target.value)} aria-label="Modalidad" className={selector}>
+        <option value="todas">Todas las modalidades</option>{modalidades.map(x => <option key={x} value={x}>{x === 'Sin dato' ? x : humano(x)}</option>)}
+      </select>
+      <span className="text-xs font-bold text-slate-400">{num(visibles.length)} {visibles.length === 1 ? 'cargo' : 'cargos'} · {num(visibles.reduce((s, f) => s + f.v.puestos, 0))} puestos</span>
+    </div>
+    <div className="glass-card overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full text-left min-w-[860px]">
+          <thead className="bg-gray-50 border-b border-gray-100"><tr>
+            {columnas.map(h => <th key={h} className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">{h}</th>)}
+          </tr></thead>
+          <tbody className="divide-y divide-gray-50">
+            {visibles.map(({ v, e }) => (
+              <tr key={v.id} className="align-top">
+                <td className="px-4 py-3"><p className="text-sm font-bold text-slate-800">{v.titulo}</p>{(v.nivel || v.experiencia) && <p className="text-[11px] text-slate-400">{[v.nivel, v.experiencia && `exp. ${v.experiencia}`].filter(Boolean).join(' · ')}</p>}</td>
+                <td className="px-4 py-3"><button type="button" onClick={() => onEmpresa(e.id)} className="text-left text-xs font-bold text-brand hover:underline">{e.nombre}</button></td>
+                <td className="px-4 py-3 text-xs text-slate-600 max-w-[12rem]">{v.ciudades.join(', ') || '—'}</td>
+                <td className="px-4 py-3 text-xs text-slate-600">{v.modalidad ? humano(v.modalidad) : '—'}</td>
+                <td className="px-4 py-3 text-xs text-slate-600">{v.contrato ? humano(v.contrato) : '—'}</td>
+                <td className="px-4 py-3 text-xs text-slate-600">{v.salario ?? '—'}</td>
+                <td className="px-4 py-3 text-xs font-bold text-slate-700">{num(v.puestos)}</td>
+                <td className="px-4 py-3">{v.estado ? <Etiqueta tono={v.publicada ? 'emerald' : 'amber'}>{humano(v.estado)}</Etiqueta> : <span className="text-xs text-slate-300">—</span>}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {visibles.length === 0 && <Vacio texto={filas.length ? 'Ninguna vacante coincide' : 'Sin vacantes en la cohorte'} />}
+    </div>
+  </>;
 }
 
 function Detalle({ e, eventos }: { e: Empresa; eventos: Evento[] }) {

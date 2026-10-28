@@ -115,6 +115,21 @@ export interface DashboardConfig {
    *  D-64: `sensibilizada` = qué hace sensibilizada a una empresa: asistir a un evento para empresas (`evento`, por
    *  defecto) o tener diagnóstico (`diagnostico`; exige `diagnostico: true`). */
   empresas: { diagnostico: boolean; sensibilizada: 'evento' | 'diagnostico' };
+  /** D-69: correo de resumen diario (n8n). Se publica como `resumen-diario.json` en el build. */
+  resumenDiario: ResumenDiario;
+}
+
+/** D-69: cifras que trae `dashboard_resumen_diario` (A-42) y que el correo sabe mostrar. */
+export const METRICAS_RESUMEN = ['registros', 'matriculas', 'asistencias', 'eventos_realizados', 'eventos_creados',
+  'empresas_vinculadas', 'diagnosticos', 'empresas_con_asistencia', 'vacantes', 'postulaciones', 'colocaciones',
+  'llamadas', 'inactivos'] as const;
+export interface ResumenDiario {
+  /** slug del formulario → nombre en el correo. Un formulario que no esté aquí no sale. */
+  formularios: Record<string, string>;
+  /** métrica → nombre propio del proyecto (p. ej. registros: Jóvenes registrados). */
+  etiquetas: Record<string, string>;
+  /** métricas que no aplican al proyecto. */
+  ocultar: string[];
 }
 
 export function parseConfigMd(md: string): DashboardConfig {
@@ -145,7 +160,23 @@ export function parseConfigMd(md: string): DashboardConfig {
     ...validarPestanas(c.pestanas, c.preguntas, c.foco, c.informe),
     hitos: validarHitos(c.hitos),
     empresas: validarEmpresas(c.empresas),
+    resumenDiario: validarResumenDiario(c.resumenDiario),
   };
+}
+
+function validarResumenDiario(r: unknown): ResumenDiario {
+  const err = (m: string): never => { throw new Error(`dashboard.config.md: resumenDiario.${m}`); };
+  const x = (r ?? {}) as { formularios?: unknown; etiquetas?: unknown; ocultar?: unknown };
+  const mapa = (v: unknown, nombre: string): Record<string, string> => {
+    if (v == null) return {};
+    if (typeof v !== 'object' || Array.isArray(v)) return err(`${nombre} debe ser un mapa clave: nombre`);
+    return Object.fromEntries(Object.entries(v).map(([k, t]) => [k, String(t)]));
+  };
+  const etiquetas = mapa(x.etiquetas, 'etiquetas');
+  const ocultar = x.ocultar == null ? [] : Array.isArray(x.ocultar) ? x.ocultar.map(String) : err('ocultar debe ser una lista');
+  const malas = [...Object.keys(etiquetas), ...ocultar].filter(k => !(METRICAS_RESUMEN as readonly string[]).includes(k));
+  if (malas.length) err(`métricas desconocidas: ${malas.join(', ')} (válidas: ${METRICAS_RESUMEN.join(', ')})`);
+  return { formularios: mapa(x.formularios, 'formularios'), etiquetas, ocultar };
 }
 
 function validarEmpresas(e: unknown): DashboardConfig['empresas'] {

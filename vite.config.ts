@@ -22,6 +22,20 @@ function dashboardConfig(): Plugin {
       this.addWatchFile(file);
       return `export default ${JSON.stringify(parseConfigMd(readFileSync(file, 'utf8')))};`;
     },
+    // D-69: lo que el resumen diario de n8n necesita del proyecto, público y sin PII (los destinatarios viven en n8n)
+    generateBundle() {
+      const c = parseConfigMd(readFileSync(file, 'utf8'));
+      const resumen = {
+        version: 1,
+        cohorte: c.identidad.cohortId,
+        nombre: c.identidad.nombre,
+        subtitulo: c.identidad.subtitulo ?? null,
+        logo: c.identidad.logoUrl ?? null,
+        color: c.identidad.colorPrimario ?? null,
+        ...c.resumenDiario,
+      };
+      this.emitFile({ type: 'asset', fileName: 'resumen-diario.json', source: JSON.stringify(resumen, null, 2) });
+    },
   };
 }
 

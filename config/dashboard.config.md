@@ -477,3 +477,13 @@ informe:
         - { titulo: "Vacantes: tipo de contrato", datos: vacantes.por_contrato }
         - { titulo: "Vacantes: modalidad", datos: vacantes.por_modalidad }
 ```
+
+## Resumen diario por correo
+
+El correo de las 6 p. m. (P-35, D-69). Los destinatarios están en la Data Table de n8n, no aquí (archivo público).
+El formulario de registro (`recorrer-pnud`) no se lista porque es igual a «Registros».
+
+```yaml
+resumenDiario:
+  formularios: { linea-base: Línea base, documentos: Documentos cargados }
+```

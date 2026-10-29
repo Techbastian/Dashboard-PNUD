@@ -67,6 +67,8 @@ export interface Evidencia { id: string; eventoId: string; tipo: TipoEvidencia; 
 export interface Pregunta {
   id: string; clave: string; etiqueta: string; tipo: string; obligatoria: boolean;
   mostrarSi: { campo: string; valores: string[] } | null;
+  /** Preguntas `file_upload`: carpeta del bucket `documentos-talentos` donde la plataforma guarda el archivo (`fileCategory`). */
+  categoria: string | null;
 }
 /** Llamada o contacto directo con la persona (participant_contacts, A-25, D-51). Aquí van las observaciones del equipo. */
 export type ResultadoLlamada = 'contesto' | 'no_contesto' | 'buzon_ocupado' | 'numero_errado' | 'llamar_despues' | 'no_continua';
@@ -156,6 +158,12 @@ interface Valor {
   borrarLlamada: (id: string, motivo: string) => Promise<string | null>;
   /** D-61: guarda o quita (url vacía) el enlace al diagnóstico de la empresa (RPC guardar_diagnostico, A-31). */
   guardarDiagnostico: (empresaId: string, url: string, fecha?: string | null) => Promise<string | null>;
+  /** D-73: sube el archivo de una pregunta `file_upload` y lo deja en la respuesta de la persona (A-43). Reemplaza el anterior. */
+  subirDocumento: (persona: Persona, fm: Formulario, q: Pregunta, archivo: File) => Promise<string | null>;
+  /** URL para abrir un documento de un formulario: firmada por 10 minutos si es una ruta del bucket. */
+  abrirDocumento: (valor: unknown) => Promise<string | null>;
+  /** D-73: sube la hoja de vida (bucket `resumes`, como la plataforma) y la deja en candidates.cv_url. Reemplaza la anterior. */
+  subirHojaDeVida: (persona: Persona, archivo: File) => Promise<string | null>;
   /** Activo / inactivo (deserción interna). Al inactivar, motivo y observación son obligatorios. */
   cambiarEstado: (x: { personaId: string; estado: 'activo' | 'inactivo'; motivo?: string | null; observacion?: string | null; fechaEfectiva?: string; etapa?: string | null }) => Promise<string | null>;
   /** Historial de cambios de una persona (se pide al abrir su ficha; no viene en la carga general). */
@@ -256,6 +264,7 @@ async function cargarTodo(): Promise<DatosCohorte> {
         id: String(q.id ?? ''), clave: claveDePregunta(q as { slug?: string; label?: string }), etiqueta: String(q.label ?? ''), tipo: String(q.type ?? ''),
         obligatoria: q.required === true,
         mostrarSi: sw?.fieldId ? { campo: sw.fieldId, valores: (sw.values ?? []).map(String) } : null,
+        categoria: s(q.fileCategory),
       };
     })),
   }));
@@ -387,6 +396,17 @@ async function cargarTodo(): Promise<DatosCohorte> {
     })),
     cargadoEl: new Date().toISOString(),
   };
+}
+
+const BUCKET_DOCUMENTOS = 'documentos-talentos';
+const BUCKET_HV = 'resumes';
+/** Tipos que se aceptan para documentos y hoja de vida. */
+export const ACEPTA_DOCUMENTO = '.pdf,.jpg,.jpeg,.png,.doc,.docx';
+const nombreLimpio = (n: string) => n.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-zA-Z0-9._-]+/g, '_');
+function archivoInvalido(f: File): string | null {
+  if (f.size > 10 * 1024 * 1024) return 'El archivo pesa más de 10 MB.';
+  if (!/\.(pdf|jpe?g|png|docx?)$/i.test(f.name)) return 'Solo PDF, imagen (JPG, PNG) o Word.';
+  return null;
 }
 
 function mensaje(e: { message: string; code?: string } | null): string | null {
@@ -551,6 +571,46 @@ export function CohorteProvider({ children }: { children: ReactNode }) {
     return mensaje(error);
   }, [recargar]);
 
+  // ─── Documentos y hoja de vida (D-73, A-43) ───────────────────────────────────────────────────────────────────
+  const subirDocumento: Valor['subirDocumento'] = useCallback(async (persona, fm, q, archivo) => {
+    const malo = archivoInvalido(archivo);
+    if (malo) return malo;
+    // Mismo formato de ruta que la plataforma: <fileCategory>/<persona>/<ms>_<nombre>.
+    const ruta = `${q.categoria ?? 'otros'}/${persona.id}/${Date.now()}_${nombreLimpio(archivo.name)}`;
+    const up = await supabase!.storage.from(BUCKET_DOCUMENTOS).upload(ruta, archivo, { contentType: archivo.type || undefined, upsert: false });
+    if (up.error) return mensaje(up.error);
+    const { error } = await supabase!.rpc('guardar_documento_persona', {
+      p_postulacion: persona.postulacionId, p_bloque: fm.bloque, p_pregunta: q.id, p_clave: q.clave, p_ruta: ruta,
+    });
+    // Si la respuesta no se guardó, el archivo no queda huérfano. El archivo anterior no se borra: queda en el historial.
+    if (error) await supabase!.storage.from(BUCKET_DOCUMENTOS).remove([ruta]);
+    if (!error) await recargar();
+    if (error && /PGRST202|Could not find the function/i.test(`${error.code ?? ''} ${error.message}`)) return 'Falta aplicar en la base la función guardar_documento_persona (A-43).';
+    return mensaje(error);
+  }, [recargar]);
+
+  const abrirDocumento: Valor['abrirDocumento'] = useCallback(async (valor) => {
+    const v = valor == null ? '' : String(valor).trim();
+    if (!v) return null;
+    if (/^https?:\/\//.test(v)) return v;
+    const { data } = await supabase!.storage.from(BUCKET_DOCUMENTOS).createSignedUrl(v, 600);
+    return data?.signedUrl ?? null;
+  }, []);
+
+  const subirHojaDeVida: Valor['subirHojaDeVida'] = useCallback(async (persona, archivo) => {
+    const malo = archivoInvalido(archivo);
+    if (malo) return malo;
+    const ext = (archivo.name.match(/\.([A-Za-z0-9]{1,5})$/)?.[1] ?? 'pdf').toLowerCase();
+    const ruta = `dashboard/${persona.id}/cv_${Date.now()}.${ext}`;
+    const up = await supabase!.storage.from(BUCKET_HV).upload(ruta, archivo, { contentType: archivo.type || undefined, upsert: false });
+    if (up.error) return mensaje(up.error);
+    const url = supabase!.storage.from(BUCKET_HV).getPublicUrl(ruta).data.publicUrl;
+    const { error } = await supabase!.from('candidates').update({ cv_url: url }).eq('id', persona.id);
+    if (error) await supabase!.storage.from(BUCKET_HV).remove([ruta]);
+    if (!error) await recargar();
+    return mensaje(error);
+  }, [recargar]);
+
   const guardarDiagnostico: Valor['guardarDiagnostico'] = useCallback(async (empresaId, url, fecha) => {
     const u = url.trim();
     if (u && !/^https:\/\//i.test(u)) return 'El enlace debe empezar por https://';
@@ -654,10 +714,10 @@ export function CohorteProvider({ children }: { children: ReactNode }) {
   const valor = useMemo(() => ({ datos, cargando, error, cargar, recargar, guardarEvento, borrarEvento, marcarAsistencia, quitarDeEvento,
     marcarEmpresa, quitarEmpresa, subirEvidencia, borrarEvidencia, abrirEvidencia,
     crearPostulacionExterna, borrarPostulacionExterna, listarEmpleadores, crearColocacion, desactivarColocacion,
-    registrarLlamada, completarLlamada, cancelarLlamada, borrarLlamada, guardarDiagnostico, cambiarEstado, historialDe }),
+    registrarLlamada, completarLlamada, cancelarLlamada, borrarLlamada, guardarDiagnostico, subirDocumento, abrirDocumento, subirHojaDeVida, cambiarEstado, historialDe }),
     [datos, cargando, error, cargar, recargar, guardarEvento, borrarEvento, marcarAsistencia, quitarDeEvento, marcarEmpresa, quitarEmpresa,
       subirEvidencia, borrarEvidencia, abrirEvidencia, crearPostulacionExterna,
-      borrarPostulacionExterna, listarEmpleadores, crearColocacion, desactivarColocacion, registrarLlamada, completarLlamada, cancelarLlamada, borrarLlamada, guardarDiagnostico, cambiarEstado, historialDe]);
+      borrarPostulacionExterna, listarEmpleadores, crearColocacion, desactivarColocacion, registrarLlamada, completarLlamada, cancelarLlamada, borrarLlamada, guardarDiagnostico, subirDocumento, abrirDocumento, subirHojaDeVida, cambiarEstado, historialDe]);
   return <Ctx.Provider value={valor}>{children}</Ctx.Provider>;
 }
 

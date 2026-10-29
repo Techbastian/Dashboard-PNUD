@@ -7,10 +7,10 @@
  * D-65: filtro tipo Excel en cada columna (se combinan con «Y»; varias casillas de una columna, con «O»), vistas
  * rápidas de la config, filtros en la dirección de la página (sin la búsqueda: es PII) y descarga en Excel de lo filtrado.
  */
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { AlertTriangle, CheckCircle2, Download, ExternalLink, FileCheck2, FileX2, Loader2, X } from 'lucide-react';
-import { useCohorte, estadoActual, estadoFormulario, type Persona, type DatosCohorte, type CambioEstado } from '../lib/datos';
+import { AlertTriangle, CheckCircle2, Download, ExternalLink, FileCheck2, FileX2, Loader2, Upload, X } from 'lucide-react';
+import { useCohorte, estadoActual, estadoFormulario, respuestaDe, ACEPTA_DOCUMENTO, type Persona, type DatosCohorte, type CambioEstado, type Formulario, type Pregunta } from '../lib/datos';
 import { etapasConRegla, evaluar, indexar, etapaActual, nombreEtapa, type Resultado } from '../lib/etapas';
 import { fecha, diaBogota, diaLargo, hora, humano, norm, num } from '../lib/formato';
 import { descargarXlsx, hoja, type Columna } from '../lib/excel';
@@ -332,7 +332,7 @@ function Ficha({ f, datos, onCerrar }: { f: Fila; datos: DatosCohorte; onCerrar:
     .sort((x, y) => x.e!.inicio.localeCompare(y.e!.inicio));
   const posts = datos.postulaciones.filter(x => x.personaId === p.id);
   const cols = datos.colocaciones.filter(x => x.personaId === p.id);
-  const docs = datos.formularios.flatMap(fm => fm.preguntas.filter(q => q.tipo === 'file_upload').map(q => ({ fm, q, v: p.respuestas[fm.bloque]?.[q.clave] })));
+  const docs = datos.formularios.flatMap(fm => fm.preguntas.filter(q => q.tipo === 'file_upload').map(q => ({ fm, q, v: respuestaDe(p.respuestas[fm.bloque] ?? {}, q) })));
   const dato = (l: string, v: string | null | undefined) => (
     <div><dt className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{l}</dt><dd className="text-sm font-bold text-slate-700 break-words">{v || '—'}</dd></div>
   );
@@ -370,11 +370,7 @@ function Ficha({ f, datos, onCerrar }: { f: Fila; datos: DatosCohorte; onCerrar:
           {dato('Correo', p.correo)}{dato('Celular', p.celular)}{dato('Ciudad', p.ciudad)}{dato('Género', p.genero)}
           {dato('Nacimiento', fecha(p.nacimiento))}{dato('Estado', humano(p.estado))}
           {dato('Matrícula', p.matricula ? `${humano(p.matricula.estado)} · ${fecha(p.matricula.fecha)}` : 'No matriculada')}
-          <div><dt className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Hoja de vida</dt><dd className="text-sm font-bold text-slate-700">
-            {p.hv ? (/^https?:\/\//.test(p.hv)
-              ? <a href={p.hv} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-brand">Abrir <ExternalLink size={13} /></a>
-              : 'Cargada') : 'No cargada'}
-          </dd></div>
+          <HojaDeVida persona={p} />
         </dl>
       </BloqueFicha>
 
@@ -402,17 +398,7 @@ function Ficha({ f, datos, onCerrar }: { f: Fila; datos: DatosCohorte; onCerrar:
       {docs.length > 0 && (
         <BloqueFicha titulo="Documentos">
           <ul className="space-y-1.5">
-            {docs.map(({ fm, q, v }) => {
-              const ok = v != null && String(v).trim() !== '';
-              const url = ok && /^https?:\/\//.test(String(v)) ? String(v) : null;
-              return (
-                <li key={fm.bloque + q.clave} className="flex items-center gap-2 text-sm">
-                  {ok ? <FileCheck2 size={15} className="text-emerald-500 shrink-0" /> : <FileX2 size={15} className="text-slate-300 shrink-0" />}
-                  <span className={`flex-1 ${ok ? 'text-slate-700 font-bold' : 'text-slate-400'}`}>{q.etiqueta}</span>
-                  {url && <a href={url} target="_blank" rel="noreferrer" className="text-brand" aria-label="Abrir documento"><ExternalLink size={14} /></a>}
-                </li>
-              );
-            })}
+            {docs.map(({ fm, q, v }) => <Documento key={fm.bloque + q.clave} persona={p} fm={fm} q={q} v={v} />)}
           </ul>
           {Object.keys(config.grupos).length > 0 && <p className="text-[10px] font-bold text-slate-400 mt-2">Grupos de la config: {Object.keys(config.grupos).join(', ')}</p>}
         </BloqueFicha>
@@ -471,5 +457,82 @@ function Ficha({ f, datos, onCerrar }: { f: Fila; datos: DatosCohorte; onCerrar:
 
       <BloqueHistorial persona={p} datos={datos} />
     </PanelLateral>
+  );
+}
+
+/** D-73: botón que elige un archivo y lo sube (documento de un formulario u hoja de vida). */
+function BotonCargar({ hay, onArchivo }: { hay: boolean; onArchivo: (f: File) => Promise<string | null> }) {
+  const input = useRef<HTMLInputElement>(null);
+  const [ocupado, setOcupado] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  async function elegido(f: File | undefined) {
+    if (!f) return;
+    setOcupado(true); setError(null);
+    const e = await onArchivo(f);
+    setOcupado(false);
+    if (e) setError(e);
+    if (input.current) input.current.value = '';
+  }
+  return (
+    <span className="inline-flex flex-col items-end">
+      <input ref={input} type="file" accept={ACEPTA_DOCUMENTO} className="hidden" onChange={e => elegido(e.target.files?.[0])} />
+      <button type="button" disabled={ocupado} onClick={() => input.current?.click()}
+        className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-brand disabled:opacity-50">
+        {ocupado ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}{ocupado ? 'Subiendo…' : hay ? 'Reemplazar' : 'Cargar'}
+      </button>
+      {error && <span className="text-[10px] font-bold text-red-500 text-right">{error}</span>}
+    </span>
+  );
+}
+
+/** Abre un documento (firmado por 10 minutos si está en el bucket privado). */
+function useAbrir() {
+  const { abrirDocumento } = useCohorte();
+  const [error, setError] = useState<string | null>(null);
+  const abrir = useCallback(async (v: unknown) => {
+    // La pestaña se abre ya (antes del await) para que el navegador no la bloquee.
+    const w = window.open('', '_blank');
+    const u = await abrirDocumento(v);
+    if (u && w) { w.opener = null; w.location.href = u; setError(null); }
+    else { w?.close(); setError('No se pudo abrir el documento.'); }
+  }, [abrirDocumento]);
+  return { abrir, error };
+}
+
+/** D-73: la hoja de vida se ve y se carga en todos los proyectos (no depende de la config). */
+function HojaDeVida({ persona }: { persona: Persona }) {
+  const { subirHojaDeVida } = useCohorte();
+  const { abrir, error } = useAbrir();
+  const hv = persona.hv?.trim() || null;
+  return (
+    <div className="col-span-2"><dt className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Hoja de vida</dt>
+      <dd className="text-sm font-bold text-slate-700 flex items-start justify-between gap-3">
+        <span>
+          {!hv ? 'No cargada' : /^https?:\/\//.test(hv)
+            ? <button type="button" onClick={() => abrir(hv)} className="inline-flex items-center gap-1 text-brand">Abrir <ExternalLink size={13} /></button>
+            : <span title={hv}>Cargada, pero el enlace no es válido: cárgala de nuevo</span>}
+          {error && <span className="block text-[10px] font-bold text-red-500">{error}</span>}
+        </span>
+        <BotonCargar hay={Boolean(hv)} onArchivo={f => subirHojaDeVida(persona, f)} />
+      </dd>
+    </div>
+  );
+}
+
+/** D-73: documento de un formulario (pregunta `file_upload`). Se carga solo si la config activa `documentos.cargar`. */
+function Documento({ persona, fm, q, v }: { persona: Persona; fm: Formulario; q: Pregunta; v: unknown }) {
+  const { subirDocumento } = useCohorte();
+  const { abrir, error } = useAbrir();
+  const ok = v != null && String(v).trim() !== '';
+  return (
+    <li className="flex items-start gap-2 text-sm">
+      {ok ? <FileCheck2 size={15} className="text-emerald-500 shrink-0 mt-0.5" /> : <FileX2 size={15} className="text-slate-300 shrink-0 mt-0.5" />}
+      <span className={`flex-1 ${ok ? 'text-slate-700 font-bold' : 'text-slate-400'}`}>
+        {q.etiqueta}
+        {error && <span className="block text-[10px] font-bold text-red-500">{error}</span>}
+      </span>
+      {ok && <button type="button" onClick={() => abrir(v)} className="text-brand mt-0.5" aria-label={`Abrir ${q.etiqueta}`} title="Abrir"><ExternalLink size={14} /></button>}
+      {config.documentos.cargar && <BotonCargar hay={ok} onArchivo={f => subirDocumento(persona, fm, q, f)} />}
+    </li>
   );
 }

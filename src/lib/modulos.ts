@@ -7,7 +7,7 @@ export type Modulo = typeof MODULOS[number];
 
 export const MODULO_INFO: Record<Modulo, { label: string; ruta: string; privado: boolean; etapa?: string; resumen: string }> = {
   dashboard:     { label: 'Dashboard',     ruta: '/',              privado: false, resumen: 'Metas, cifras, ruta de la persona, empresas y vacantes en vivo.' },
-  participantes: { label: 'Participantes', ruta: '/participantes', privado: true, etapa: 'E4', resumen: 'Tabla por persona con su avance en cada etapa de la ruta y una ficha con datos, formularios, documentos, eventos y postulaciones.' },
+  participantes: { label: 'Participantes', ruta: '/participantes', privado: true, etapa: 'E4', resumen: 'Tabla por persona con su avance en cada etapa de la ruta y una ficha con datos, formularios, documentos y hoja de vida (abrir y cargar), eventos y postulaciones.' },
   colocacion:    { label: 'Colocación',    ruta: '/colocacion',    privado: true, etapa: 'E5', resumen: 'Intermediación (postulaciones a vacantes) y colocación de las personas.' },
   empresas:      { label: 'Empresas',      ruta: '/empresas',      privado: true, etapa: 'E6', resumen: 'Empresas vinculadas al proyecto, con sus datos y vacantes.' },
   calendario:    { label: 'Calendario',    ruta: '/calendario',    privado: true, etapa: 'E3', resumen: 'Sesiones y eventos en vista de mes o agenda: crear, agendar personas y marcar asistencia.' },

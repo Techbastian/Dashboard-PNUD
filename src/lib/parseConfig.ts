@@ -115,6 +115,9 @@ export interface DashboardConfig {
    *  D-64: `sensibilizada` = qué hace sensibilizada a una empresa: asistir a un evento para empresas (`evento`, por
    *  defecto) o tener diagnóstico (`diagnostico`; exige `diagnostico: true`). */
   empresas: { diagnostico: boolean; sensibilizada: 'evento' | 'diagnostico' };
+  /** D-73: `cargar: true` = la ficha de Participantes carga los documentos de los formularios (preguntas `file_upload`, A-43).
+   *  Sin él, los documentos solo se ven. La hoja de vida se ve y se carga siempre. */
+  documentos: { cargar: boolean };
   /** D-69: correo de resumen diario (n8n). Se publica como `resumen-diario.json` en el build. */
   resumenDiario: ResumenDiario;
 }
@@ -162,6 +165,7 @@ export function parseConfigMd(md: string): DashboardConfig {
     ...validarPestanas(c.pestanas, c.preguntas, c.foco, c.informe),
     hitos: validarHitos(c.hitos),
     empresas: validarEmpresas(c.empresas),
+    documentos: validarDocumentos(c.documentos),
     resumenDiario: validarResumenDiario(c.resumenDiario),
   };
 }
@@ -193,6 +197,12 @@ function validarEmpresas(e: unknown): DashboardConfig['empresas'] {
   if (sensibilizada === 'diagnostico' && !diagnostico)
     throw new Error('dashboard.config.md: empresas.sensibilizada: diagnostico exige empresas.diagnostico: true');
   return { diagnostico, sensibilizada };
+}
+
+function validarDocumentos(d: unknown): DashboardConfig['documentos'] {
+  const x = (d ?? {}) as { cargar?: unknown };
+  if (x.cargar != null && typeof x.cargar !== 'boolean') throw new Error('dashboard.config.md: documentos.cargar debe ser true o false');
+  return { cargar: x.cargar === true };
 }
 
 /** Condiciones que entiende la función pública en `uniones` (A-20; v13 A-41: + documentos y asistencia_matriculado) — mismas que las reglas por persona. */

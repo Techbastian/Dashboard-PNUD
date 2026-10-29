@@ -42,12 +42,13 @@ grupos:
       - seguimiento_90_dias
 ```
 
-P-36 (D-73): el equipo carga y reemplaza los documentos de la Fase Documental (perfilamiento, mitigación, seguimientos,
-cédula, autorización) desde la ficha de Participantes; quedan en la respuesta de la persona, como si los subiera ella.
+P-36 (D-73) / P-37: por ahora el equipo solo carga la hoja de vida (eso no depende de esta clave). Los documentos de la
+Fase Documental se ven y se abren desde la ficha, pero no se cargan: pasar a `true` cuando A-44 esté aplicada
+(antes: slug en las 4 preguntas de documento que no tienen y endurecer la función).
 
 ```yaml
 documentos:
-  cargar: true
+  cargar: false
 ```
 
 ## Metas del contrato (P-05, A-09)

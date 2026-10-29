@@ -42,6 +42,14 @@ grupos:
       - seguimiento_90_dias
 ```
 
+P-36 (D-73): el equipo carga y reemplaza los documentos de la Fase Documental (perfilamiento, mitigación, seguimientos,
+cédula, autorización) desde la ficha de Participantes; quedan en la respuesta de la persona, como si los subiera ella.
+
+```yaml
+documentos:
+  cargar: true
+```
+
 ## Metas del contrato (P-05, A-09)
 
 Una fase por producto del contrato. El **objetivo** sale de `cohort_goals` (por nombre); el **actual** se calcula en vivo.

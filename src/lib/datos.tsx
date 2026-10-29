@@ -158,7 +158,7 @@ interface Valor {
   borrarLlamada: (id: string, motivo: string) => Promise<string | null>;
   /** D-61: guarda o quita (url vacía) el enlace al diagnóstico de la empresa (RPC guardar_diagnostico, A-31). */
   guardarDiagnostico: (empresaId: string, url: string, fecha?: string | null) => Promise<string | null>;
-  /** D-73: sube el archivo de una pregunta `file_upload` y lo deja en la respuesta de la persona (A-43). Reemplaza el anterior. */
+  /** D-73: sube el archivo de una pregunta `file_upload` y lo deja en la respuesta de la persona (A-44). Reemplaza el anterior. */
   subirDocumento: (persona: Persona, fm: Formulario, q: Pregunta, archivo: File) => Promise<string | null>;
   /** URL para abrir un documento de un formulario: firmada por 10 minutos si es una ruta del bucket. */
   abrirDocumento: (valor: unknown) => Promise<string | null>;
@@ -585,7 +585,7 @@ export function CohorteProvider({ children }: { children: ReactNode }) {
     // Si la respuesta no se guardó, el archivo no queda huérfano. El archivo anterior no se borra: queda en el historial.
     if (error) await supabase!.storage.from(BUCKET_DOCUMENTOS).remove([ruta]);
     if (!error) await recargar();
-    if (error && /PGRST202|Could not find the function/i.test(`${error.code ?? ''} ${error.message}`)) return 'Falta aplicar en la base la función guardar_documento_persona (A-43).';
+    if (error && /PGRST202|Could not find the function/i.test(`${error.code ?? ''} ${error.message}`)) return 'Falta aplicar en la base la función guardar_documento_persona (A-44).';
     return mensaje(error);
   }, [recargar]);
 

@@ -115,7 +115,7 @@ export interface DashboardConfig {
    *  D-64: `sensibilizada` = qué hace sensibilizada a una empresa: asistir a un evento para empresas (`evento`, por
    *  defecto) o tener diagnóstico (`diagnostico`; exige `diagnostico: true`). */
   empresas: { diagnostico: boolean; sensibilizada: 'evento' | 'diagnostico' };
-  /** D-73: `cargar: true` = la ficha de Participantes carga los documentos de los formularios (preguntas `file_upload`, A-43).
+  /** D-73: `cargar: true` = la ficha de Participantes carga los documentos de los formularios (preguntas `file_upload`, A-44).
    *  Sin él, los documentos solo se ven. La hoja de vida se ve y se carga siempre. */
   documentos: { cargar: boolean };
   /** D-69: correo de resumen diario (n8n). Se publica como `resumen-diario.json` en el build. */

@@ -5,7 +5,9 @@
  *     sesión del equipo (A-17).
  *   · Opcional (D-72): junto a cada hoja de formulario, una hoja «· personas» con las respuestas de cada persona y el
  *     enlace a su hoja de vida (datos personales, de la capa privada).
- *   · PDF ejecutivo = las pestañas del Dashboard, una por página (diálogo de impresión del navegador).
+ *   · PDF ejecutivo = las pestañas del Dashboard, una por página (diálogo de impresión del navegador). D-74: con
+ *     `reporte` en la config, el PDF es el reporte de población (ReporteView): rango de fechas de registro y solo
+ *     personas que respondieron los formularios de `reporte.completos`.
  */
 import { useState } from 'react';
 import { Download, FileText, Loader2, Eye } from 'lucide-react';
@@ -23,6 +25,7 @@ export default function InformesView() {
   const foco = config.foco;
   const pFoco = foco?.personas ? config.preguntas.find(p => p.id === foco.personas) : undefined;
   const [corte, setCorte] = useState('');
+  const [desde, setDesde] = useState('');
   const [alcance, setAlcance] = useState<Alcance>('todos');
   const [genero, setGenero] = useState(true);
   const [conPersonas, setConPersonas] = useState(false);
@@ -134,14 +137,40 @@ export default function InformesView() {
             className="flex items-center gap-2 border border-slate-200 text-slate-700 rounded-xl px-4 py-2.5 text-[11px] font-black uppercase tracking-widest disabled:opacity-50">
             {trabajando === 'previa' ? <Loader2 size={14} className="animate-spin" /> : <Eye size={14} />} Vista previa
           </button>
-          {config.pestanas.length > 0 && (
+          {config.reporte ? (
+            <button type="button" onClick={() => window.open(`/informes/reporte?${new URLSearchParams({ desde, hasta: corte })}`, '_blank', 'noopener')}
+              className="flex items-center gap-2 border border-brand/40 text-brand rounded-xl px-4 py-2.5 text-[11px] font-black uppercase tracking-widest">
+              <FileText size={14} /> PDF ejecutivo
+            </button>
+          ) : config.pestanas.length > 0 && (
             <button type="button" onClick={() => window.open('/?imprimir=1', '_blank', 'noopener')}
               className="flex items-center gap-2 border border-brand/40 text-brand rounded-xl px-4 py-2.5 text-[11px] font-black uppercase tracking-widest">
               <FileText size={14} /> PDF ejecutivo
             </button>
           )}
         </div>
-        <p className="text-[11px] font-bold text-slate-400">Excel = detalle, una tabla por pregunta. PDF = las pestañas del Dashboard, una por página (elige «Guardar como PDF»).</p>
+        <p className="text-[11px] font-bold text-slate-400">Excel = detalle, una tabla por pregunta. {config.reporte
+          ? `PDF = ${config.reporte.titulo.toLowerCase()}: gráficos por tema, carta vertical (elige «Guardar como PDF»).`
+          : 'PDF = las pestañas del Dashboard, una por página (elige «Guardar como PDF»).'}</p>
+        {config.reporte && (
+          <fieldset className="border-t border-slate-100 pt-4 space-y-3">
+            <legend className={etiqueta}>PDF ejecutivo</legend>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block">
+                <span className={etiqueta}>Registrados desde</span>
+                <input type="date" value={desde} onChange={e => setDesde(e.target.value)} className={campo} />
+              </label>
+              <label className="block">
+                <span className={etiqueta}>Hasta</span>
+                <input type="date" value={corte} onChange={e => setCorte(e.target.value)} className={campo} />
+              </label>
+            </div>
+            <p className="text-[11px] font-medium text-slate-400">
+              Solo personas que respondieron {config.reporte.completos.join(' y ')}; las respuestas vacías nunca se cuentan.
+              «Hasta» es la misma fecha de corte del Excel. Sin fechas = todo lo registrado.
+            </p>
+          </fieldset>
+        )}
       </div>
 
       <div className="glass-card p-6 min-w-0 space-y-4">

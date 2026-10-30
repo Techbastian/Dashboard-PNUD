@@ -8,6 +8,7 @@ import ColocacionView from './views/ColocacionView';
 import EmpresasView from './views/EmpresasView';
 import ListadosView from './views/ListadosView';
 import InformesView from './views/InformesView';
+import ReporteView from './views/ReporteView';
 import { AuthProvider } from './lib/auth';
 import { CohorteProvider } from './lib/datos';
 import { config } from './lib/config';
@@ -16,7 +17,8 @@ import type { ReactElement } from 'react';
 
 /**
  * Rutas (D-11). Mismos módulos y orden que FQSD (D-35). Los privados pasan por <ModuloPrivado> (sesión del
- * equipo, D-32). Informes (E8, D-43): Excel de conteos por pregunta + PDF de las pestañas.
+ * equipo, D-32). Informes (E8, D-43): Excel de conteos por pregunta + PDF de las pestañas. D-74: el reporte de
+ * población (PDF carta vertical) va fuera del armazón, para imprimirse limpio.
  */
 const VISTAS: Partial<Record<Modulo, () => ReactElement>> = {
   participantes: () => <ParticipantesView />,
@@ -33,6 +35,9 @@ export default function App() {
       <CohorteProvider>
         <BrowserRouter>
           <Routes>
+            {config.reporte && config.modulos.includes('informes') && (
+              <Route path="informes/reporte" element={<ModuloPrivado modulo="informes"><ReporteView /></ModuloPrivado>} />
+            )}
             <Route element={<Shell />}>
               <Route index element={<DashboardView />} />
               {config.modulos.filter(m => m !== 'dashboard').map(m => (

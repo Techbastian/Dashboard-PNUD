@@ -21,6 +21,8 @@ export interface Persona {
   ciudad: string | null;
   genero: string | null;
   nacimiento: string | null;
+  /** Nivel educativo del registro (candidates.education_level), igual que la función pública. */
+  nivel: string | null;
   /** Hoja de vida cargada en la plataforma (candidates.cv_url). */
   hv: string | null;
   postulacionId: string;
@@ -69,6 +71,8 @@ export interface Pregunta {
   mostrarSi: { campo: string; valores: string[] } | null;
   /** Preguntas `file_upload`: carpeta del bucket `documentos-talentos` donde la plataforma guarda el archivo (`fileCategory`). */
   categoria: string | null;
+  /** Opciones de las preguntas de selección, en el orden del formulario. */
+  opciones: string[];
 }
 /** Llamada o contacto directo con la persona (participant_contacts, A-25, D-51). Aquí van las observaciones del equipo. */
 export type ResultadoLlamada = 'contesto' | 'no_contesto' | 'buzon_ocupado' | 'numero_errado' | 'llamar_despues' | 'no_continua';
@@ -265,6 +269,8 @@ async function cargarTodo(): Promise<DatosCohorte> {
         obligatoria: q.required === true,
         mostrarSi: sw?.fieldId ? { campo: sw.fieldId, valores: (sw.values ?? []).map(String) } : null,
         categoria: s(q.fileCategory),
+        opciones: (Array.isArray(q.options) ? q.options as unknown[] : [])
+          .map(o => String((o as { label?: unknown } | null)?.label ?? o ?? '').trim()).filter(Boolean),
       };
     })),
   }));
@@ -279,7 +285,7 @@ async function cargarTodo(): Promise<DatosCohorte> {
     .filter(a => !personasFuera.has(String(a.candidate_id ?? '')));
   const idsPersonas = apps.map(a => String(a.candidate_id ?? '')).filter(Boolean);
   const [cands, matriculas, eventos, colocRaw, postPlat, postExt, enlaces, vacRaw, socio, llamRaw, estRaw] = await Promise.all([
-    porIds('candidates', 'id, first_name, last_name, document_type, document_number, email, phone, city, gender, birth_date, cv_url', 'id', idsPersonas),
+    porIds('candidates', 'id, first_name, last_name, document_type, document_number, email, phone, city, gender, birth_date, education_level, cv_url', 'id', idsPersonas),
     todas('program_enrollments', 'id, candidate_id, status, enrolled_at', q => q.eq('cohort_id', COHORTE)),
     todas('events', 'id, nombre, tipo, fase, modalidad, ubicacion, fecha_hora_inicio, fecha_hora_fin, descripcion, toma_asistencia, external_source, meeting_link', q => q.eq('cohort_id', COHORTE).order('fecha_hora_inicio')),
     porIds('placements', 'id, talent_id, company_id, hiring_employer_id, job_id, start_date, role_sector, modality, status, deactivated_at, duration_months', 'talent_id', idsPersonas),
@@ -321,7 +327,7 @@ async function cargarTodo(): Promise<DatosCohorte> {
       id: String(a.candidate_id),
       nombre: [c.first_name, c.last_name].filter(Boolean).join(' ').trim() || 'Sin nombre',
       tipoDoc: s(c.document_type), documento: s(c.document_number), correo: s(c.email), celular: s(c.phone),
-      ciudad: s(c.city), genero: generoLegible(generoPorId.get(String(a.candidate_id)) ?? s(c.gender)), nacimiento: s(c.birth_date), hv: s(c.cv_url),
+      ciudad: s(c.city), genero: generoLegible(generoPorId.get(String(a.candidate_id)) ?? s(c.gender)), nacimiento: s(c.birth_date), nivel: s(c.education_level), hv: s(c.cv_url),
       postulacionId: String(a.id), estado: s(a.status), registradaEl: s(a.created_at),
       respuestas: (a.custom_answers ?? {}) as Persona['respuestas'],
       matricula: m ? { id: Number(m.id), estado: s(m.status), fecha: s(m.enrolled_at) } : null,

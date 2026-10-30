@@ -79,6 +79,36 @@ export interface HojaInforme {
 }
 export interface Informe { hojas: HojaInforme[] }
 
+/**
+ * D-74: reporte ejecutivo de población (PDF vertical del módulo Informes). Se calcula persona por persona desde la
+ * capa privada, con rango de fechas de registro, y solo con personas que tienen completos los formularios de
+ * `completos` (respondieron todos esos formularios).
+ * Las respuestas vacías nunca se cuentan: cada gráfico dice sobre cuántas personas se calculó.
+ */
+export const DATOS_REPORTE = ['genero', 'edad', 'municipio', 'nivel'] as const;
+export type DatoReporte = typeof DATOS_REPORTE[number];
+export const TIPOS_GRAFICO_REPORTE = ['barras', 'dona', 'apilada', 'ranking', 'cruce'] as const;
+export interface GraficoReporte {
+  titulo: string; nota?: string; tipo: typeof TIPOS_GRAFICO_REPORTE[number];
+  /** barras/dona: dato del registro o pregunta. */ dato?: DatoReporte; pregunta?: string;
+  /** apilada/ranking/cruce: una fila por pregunta. */ preguntas?: string[];
+  /** apilada/ranking/cruce: categorías que suman el % (exactas o prefijo numérico: "4" = «4 - Alto»). */ destacar?: string[];
+  /** cruce: columnas (dato del registro o pregunta). */ por?: string;
+  /** barras/cruce: orden fijo de categorías. */ orden?: string[];
+  /** barras/ranking: cuántas mostrar (el resto va a «Otros» en barras). */ top?: number;
+  /** barras/ranking: mujeres vs hombres (por defecto sí). */ porGenero?: boolean;
+  /** apilada: escala = rampa ordinal; sino = Sí / No. */ paleta?: 'escala' | 'sino';
+  /** La lectura principal del gráfico va a los hallazgos clave. */ hallazgo?: boolean;
+}
+export interface CifraReporte {
+  label: string;
+  /** personas = total del reporte; mujeres = % de mujeres; pregunta + destacar = % que responde eso;
+   *  pregunta + moda = categoría más frecuente; regla (etapas.ts) = % que la cumple (negar = % que no). */
+  tipo?: 'personas' | 'mujeres'; pregunta?: string; destacar?: string[]; moda?: boolean; regla?: string; negar?: boolean; nota?: string;
+}
+export interface PaginaReporte { titulo: string; subtitulo?: string; cifras: CifraReporte[]; graficos: GraficoReporte[]; hallazgos?: boolean }
+export interface Reporte { titulo: string; completos: string[]; paginas: PaginaReporte[] }
+
 export interface DashboardConfig {
   identidad: {
     cohortId: string;
@@ -111,6 +141,8 @@ export interface DashboardConfig {
   preguntas: Pregunta[];
   foco: Foco | null;
   informe: Informe;
+  /** D-74: PDF ejecutivo de población; null = el PDF imprime las pestañas del Dashboard. */
+  reporte: Reporte | null;
   /** D-61: `diagnostico: true` = el módulo Empresas registra el enlace al diagnóstico de cada empresa (A-31).
    *  D-64: `sensibilizada` = qué hace sensibilizada a una empresa: asistir a un evento para empresas (`evento`, por
    *  defecto) o tener diagnóstico (`diagnostico`; exige `diagnostico: true`). */
@@ -167,6 +199,7 @@ export function parseConfigMd(md: string): DashboardConfig {
     empresas: validarEmpresas(c.empresas),
     documentos: validarDocumentos(c.documentos),
     resumenDiario: validarResumenDiario(c.resumenDiario),
+    reporte: validarReporte(c.reporte, c.preguntas),
   };
 }
 
@@ -344,6 +377,49 @@ function validarPestanas(p: unknown, q: unknown, f: unknown, inf: unknown) {
     return h;
   });
   return { pestanas, preguntas, foco, informe: { hojas } };
+}
+
+const ES_DATO = (x: unknown): x is DatoReporte => (DATOS_REPORTE as readonly string[]).includes(String(x));
+
+function validarReporte(r: unknown, pr: unknown): Reporte | null {
+  if (r == null) return null;
+  const err = (m: string) => { throw new Error(`dashboard.config.md: reporte${m}`); };
+  const x = r as Partial<Reporte>;
+  if (!Array.isArray(x.paginas) || !x.paginas.length) err(' necesita paginas (lista)');
+  const ids = new Set(((pr ?? []) as { id?: string }[]).map(p => p?.id));
+  const existe = (id: unknown, donde: string) => { if (!ids.has(String(id))) err(`${donde}: la pregunta «${id}» no está en preguntas`); };
+  const paginas = x.paginas!.map((p, i) => {
+    const dp = `.paginas[${i}]`;
+    if (!p?.titulo) err(`${dp} necesita titulo`);
+    const graficos = (p.graficos ?? []).map((g, j) => {
+      const d = `${dp}.graficos[${j}]`;
+      if (!g?.titulo || !(TIPOS_GRAFICO_REPORTE as readonly string[]).includes(g.tipo)) err(`${d} necesita titulo y tipo (${TIPOS_GRAFICO_REPORTE.join(', ')})`);
+      if (g.tipo === 'barras' || g.tipo === 'dona') {
+        if (!g.dato === !g.pregunta) err(`${d}: ${g.tipo} necesita dato (${DATOS_REPORTE.join(', ')}) o pregunta, solo uno`);
+        if (g.dato && !ES_DATO(g.dato)) err(`${d}: dato «${g.dato}» no existe (válidos: ${DATOS_REPORTE.join(', ')})`);
+        if (g.pregunta) existe(g.pregunta, d);
+      } else {
+        if (!g.preguntas?.length) err(`${d}: ${g.tipo} necesita preguntas`);
+        g.preguntas!.forEach(id => existe(id, d));
+        if (!g.destacar?.length && g.tipo !== 'apilada') err(`${d}: ${g.tipo} necesita destacar`);
+      }
+      if (g.tipo === 'cruce') {
+        if (!g.por) err(`${d}: cruce necesita por (dato del registro o pregunta)`);
+        else if (!ES_DATO(g.por)) existe(g.por, d);
+      }
+      return { ...g, porGenero: g.porGenero ?? true };
+    });
+    const cifras = (p.cifras ?? []).map((c, j) => {
+      const d = `${dp}.cifras[${j}]`;
+      if (!c?.label) err(`${d} necesita label`);
+      if (!c.tipo && !c.pregunta && !c.regla) err(`${d} necesita tipo (personas, mujeres), pregunta o regla`);
+      if (c.pregunta) { existe(c.pregunta, d); if (!c.moda && !c.destacar?.length) err(`${d}: con pregunta necesita destacar o moda: true`); }
+      return c;
+    });
+    if (cifras.length > 6) err(`${dp}: máximo 6 cifras`);
+    return { ...p, cifras, graficos } as PaginaReporte;
+  });
+  return { titulo: x.titulo ?? 'Reporte de población', completos: (x.completos ?? []).map(String), paginas };
 }
 
 function validarModulos(m: unknown): Modulo[] {

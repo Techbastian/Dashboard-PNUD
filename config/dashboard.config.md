@@ -487,6 +487,96 @@ informe:
         - { titulo: "Vacantes: modalidad", datos: vacantes.por_modalidad }
 ```
 
+## Reporte ejecutivo de población (PDF, P-41 · D-74 de la plantilla)
+
+Insumo para el informe PNUD (reunión «Data Recorrer», 29-oct). Estudia la población: sin hitos ni empresas. Rango de
+fechas de registro (sirve para cualquier evento entre dos fechas), todo por género, y **solo personas que respondieron el
+registro y la línea base**; las respuestas vacías no se cuentan en ningún gráfico (cada uno dice sobre cuántas personas). Hallazgos calculados por el sistema. Sin test de Holland
+en esta versión (no está en la plataforma).
+
+```yaml
+reporte:
+  titulo: Reporte de población
+  completos: [recorrer-pnud, linea-base]
+  paginas:
+    - titulo: Resumen en cifras
+      cifras:
+        - { label: Personas en el reporte, tipo: personas }
+        - { label: Mujeres, tipo: mujeres }
+        - { label: Con al menos una barrera alta, pregunta: barrera_alta, destacar: [Sí], nota: Califican alguna de las 15 barreras con 4 o 5 }
+        - { label: Sin hoja de vida, regla: hv, negar: true, nota: Sin hoja de vida cargada en la plataforma }
+        - { label: Ingreso personal más frecuente, pregunta: ingresos_personales, moda: true }
+        - { label: No le alcanza para alimentación, pregunta: cubre_alimentacion, destacar: [No] }
+      hallazgos: true
+
+    - titulo: ¿Quiénes son?
+      subtitulo: Caracterización de las personas
+      graficos:
+        - { titulo: Género, nota: Registro, tipo: dona, dato: genero }
+        - { titulo: Edad, nota: Registro · fecha de nacimiento, tipo: barras, dato: edad, hallazgo: true }
+        - { titulo: Municipio de residencia, nota: Registro · los 8 más frecuentes, tipo: barras, dato: municipio, top: 8 }
+        - { titulo: Grupos poblacionales, nota: Línea base, tipo: barras, pregunta: grupos_poblacionales, hallazgo: true }
+        - { titulo: Área, nota: Registro, tipo: barras, pregunta: area }
+        - { titulo: Persona en condición de discapacidad, nota: Línea base, tipo: barras, pregunta: discapacidad }
+
+    - titulo: Educación y formación
+      graficos:
+        - titulo: Nivel educativo
+          nota: Registro · de menor a mayor
+          tipo: barras
+          dato: nivel
+          orden: &niveles [Ninguno, Primaria, Secundaria, Media Bachiller, Técnico, Tecnológico, Profesional, Profesional universitario, Especialización, Maestría, Doctorado]
+          hallazgo: true
+        - { titulo: ¿Está estudiando actualmente?, nota: Línea base, tipo: barras, pregunta: estudiando }
+        - { titulo: Razón principal por la que no estudia, nota: Línea base · quienes no estudian, tipo: barras, pregunta: razon_no_estudia, hallazgo: true }
+        - { titulo: ¿Ha asistido a capacitación para el trabajo?, nota: Línea base, tipo: barras, pregunta: capacitacion }
+        - { titulo: ¿Requiere certificar una habilidad?, nota: Registro, tipo: barras, pregunta: certificar }
+        - { titulo: ¿Requiere formación para el trabajo o un curso corto?, nota: Registro, tipo: barras, pregunta: requiere_curso }
+
+    - titulo: Barreras
+      subtitulo: "% que califica cada barrera como alta (4) o muy alta (5)"
+      graficos:
+        - titulo: Las 15 barreras, de la más alta a la más baja
+          nota: Línea base · escala de 1 a 5
+          tipo: ranking
+          destacar: ["4", "5"]
+          preguntas: &barreras [b_cultura, b_vestuario, b_transporte, b_cuidado, b_conciliar, b_discriminacion, b_convalidacion, b_transversales, b_tecnicas, b_certificacion, b_tramites, b_dependencia, b_recursos, b_financiera, b_virtuales]
+          hallazgo: true
+        - { titulo: Barreras por nivel educativo, nota: "% que la califica 4 o 5 dentro de cada nivel", tipo: cruce, por: nivel, orden: *niveles, destacar: ["4", "5"], preguntas: *barreras, hallazgo: true }
+        - { titulo: Barreras que quiere mitigar, nota: Línea base · quienes esperan mitigar barreras de la ruta, tipo: barras, pregunta: barreras_mitigar }
+        - { titulo: Ajustes o productos de apoyo que requiere, nota: Línea base, tipo: barras, pregunta: ajustes_apoyo }
+
+    - titulo: Economía del hogar
+      subtitulo: Ingresos, gastos y autonomía económica
+      graficos:
+        - { titulo: Ingresos personales del mes pasado, nota: Línea base, tipo: barras, pregunta: ingresos_personales, porGenero: true }
+        - { titulo: Ingresos del hogar del último mes, nota: Línea base, tipo: barras, pregunta: ingresos_hogar }
+        - { titulo: ¿Sus ingresos le alcanzan para…?, nota: "Línea base · el número es el % que responde «No»", tipo: apilada, paleta: sino, destacar: ["No"], preguntas: [cubre_alimentacion, cubre_vivienda, cubre_servicios, cubre_salud, cubre_vestuario, ahorrar], hallazgo: true }
+        - { titulo: Gasto del hogar por rubro, nota: Línea base · mes anterior, tipo: apilada, preguntas: [gasto_alimentacion, gasto_vivienda, gasto_transporte, gasto_salud, gasto_educacion, gasto_vestuario, gasto_limpieza, gasto_deudas] }
+        - { titulo: ¿Ha recurrido a préstamos informales (gota a gota)?, nota: Línea base, tipo: barras, pregunta: gota_a_gota }
+        - { titulo: Quién aporta la mayor parte de los ingresos, nota: Línea base, tipo: barras, pregunta: aporte_mayor }
+
+    - titulo: Intereses y empleabilidad
+      graficos:
+        - { titulo: Tipo de empleo que le gustaría conseguir, nota: Línea base, tipo: barras, pregunta: tipo_empleo, hallazgo: true }
+        - { titulo: ¿Le interesa fortalecer sus destrezas laborales?, nota: Registro, tipo: barras, pregunta: fortalecer }
+        - { titulo: "Habilidades, oficios o conocimientos prácticos", nota: Registro · los 8 más frecuentes, tipo: barras, pregunta: habilidades_oficios, top: 8, hallazgo: true }
+        - { titulo: Competencias técnicas con mayores fortalezas, nota: Línea base · las 8 más frecuentes, tipo: barras, pregunta: competencias_tecnicas, top: 8 }
+        - { titulo: ¿Qué tan capaz se siente de conseguir empleo?, nota: "Línea base · 1 a 5 · pregunta que generó confusión (reunión 29-oct)", tipo: barras, pregunta: capacidad_empleo }
+        - { titulo: ¿Está buscando empleo?, nota: Registro, tipo: barras, pregunta: buscando_empleo }
+
+    - titulo: La ruta y lo que sigue
+      cifras:
+        - { label: Con hoja de vida, regla: hv, nota: Cargada en la plataforma }
+        - { label: Con perfilamiento, regla: "documentos:perfilamiento", nota: Informe individual cargado }
+        - { label: Atendidas en mitigación, regla: "union:mitigacion", nota: Soporte de mitigación o sesión formativa }
+      graficos:
+        - { titulo: Expectativas de la ruta Recorrer, nota: Línea base, tipo: barras, pregunta: expectativas, hallazgo: true }
+        - { titulo: Calificación de la ruta hasta el momento, nota: Línea base · 1 a 5, tipo: barras, pregunta: calificacion_ruta }
+        - { titulo: ¿Ha tenido apoyo y orientación laboral de alguna entidad?, nota: Línea base, tipo: barras, pregunta: apoyo_orientacion }
+        - { titulo: Entidad que brindó la orientación, nota: Línea base · quienes tuvieron apoyo, tipo: barras, pregunta: entidad_orientacion }
+```
+
 ## Resumen diario por correo
 
 El correo de las 6 p. m. (P-35, D-69). Los destinatarios están en la Data Table de n8n, no aquí (archivo público).

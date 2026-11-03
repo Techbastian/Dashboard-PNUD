@@ -31,8 +31,8 @@ slug, su etiqueta en minúsculas con `_`). P-18: las claves anteriores eran etiq
 
 ```yaml
 grupos:
-  perfilamiento:                   # P-18: «Informe individual de perfilamiento» (Fase Documental)
-    - perfilamiento_plan_accion
+  perfilamiento:                   # P-18/P-45: «Informe individual de perfilamiento» (Fase Documental)
+    - doc_perfilamiento
   mitigadas:                       # «Entrega de servicio de mitigación de barreras»
     - mitigacion_barreras_pnud
   seguimiento:                     # P5: al menos una sesión de seguimiento poscolocación (documentos de la persona)

@@ -3,6 +3,6 @@ import cfg from 'virtual:dashboard-config';
 import type { DashboardConfig } from './parseConfig';
 export type {
   Cifra, Meta, Etapa, Marca, Vista, Distribucion, DashboardConfig, TipoEvento, Pregunta, Foco, Pestana, Grafico, CifraPestana, HojaInforme, Motivo, Hito,
-  Reporte, PaginaReporte, GraficoReporte, CifraReporte, DatoReporte,
+  Reporte, PaginaReporte, GraficoReporte, CifraReporte, DatoReporte, Necesidad, GrupoPerfilado, SenalNecesidad, PasoEmbudo,
 } from './parseConfig';
 export const config = cfg as DashboardConfig;

@@ -9,6 +9,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { supabase } from './supabase';
 import { config } from './config';
+import { PERFIL_COLUMNAS } from './parseConfig';
 import { useAuth } from './auth';
 
 export interface Persona {
@@ -29,6 +30,9 @@ export interface Persona {
   estado: string | null;
   registradaEl: string | null;
   respuestas: Record<string, Record<string, unknown>>;
+  /** D-75: datos sociodemográficos del registro de la plataforma (socio_demographic_data, columnas de PERFIL_COLUMNAS).
+   *  En la config se leen como preguntas con `bloque: perfil`. */
+  perfil: Record<string, unknown>;
   matricula: { id: number; estado: string | null; fecha: string | null } | null;
 }
 export interface Evento {
@@ -294,7 +298,7 @@ async function cargarTodo(): Promise<DatosCohorte> {
     todas('company_cohorts', config.empresas.diagnostico ? 'company_id, diagnostico_url, diagnostico_fecha' : 'company_id', q => q.eq('cohort_id', COHORTE)),
     todas('jobs', 'id, company_id, title, total_positions, salary_range, modality, employment_type, required_education_level, required_experience_months, status, is_published, visibility, cities', q => q.eq('cohort_id', COHORTE)),
     // Campo «Género» del registro de la plataforma (D-42); candidates.gender queda de respaldo para registros antiguos.
-    porIds('socio_demographic_data', 'id, candidate_id, gender_identity', 'candidate_id', idsPersonas),
+    porIds('socio_demographic_data', `id, candidate_id, gender_identity, ${PERFIL_COLUMNAS.join(', ')}`, 'candidate_id', idsPersonas),
     todas('participant_contacts', 'id, candidate_id, fecha, canal, proposito, resultado, notas, opinion, proxima_accion, proxima_fecha, registrado_por', q => q.eq('cohort_id', COHORTE).order('fecha', { ascending: false })),
     todas('participant_status_log', 'id, candidate_id, estado, motivo, observacion, fecha_efectiva, etapa, registrado_por, created_at', q => q.eq('cohort_id', COHORTE).order('fecha_efectiva', { ascending: false }).order('created_at', { ascending: false })),
   ]);
@@ -319,6 +323,9 @@ async function cargarTodo(): Promise<DatosCohorte> {
   // Sin unique en socio_demographic_data: gana la fila más reciente (mismo criterio que la función pública v6).
   const generoPorId = new Map([...socio].sort((x, y) => Number(x.id) - Number(y.id))
     .filter(r => s(r.gender_identity)).map(r => [String(r.candidate_id), String(r.gender_identity)]));
+  // D-75: el perfil sale de la fila más reciente de cada persona (mismo criterio).
+  const perfilPorId = new Map([...socio].sort((x, y) => Number(x.id) - Number(y.id))
+    .map(r => [String(r.candidate_id), Object.fromEntries(PERFIL_COLUMNAS.map(k => [k, r[k]]))]));
   const matPorPersona = new Map(matriculas.map(m => [String(m.candidate_id), m]));
   const personas: Persona[] = apps.filter(a => a.candidate_id).map(a => {
     const c = candPorId.get(String(a.candidate_id)) ?? {};
@@ -330,6 +337,7 @@ async function cargarTodo(): Promise<DatosCohorte> {
       ciudad: s(c.city), genero: generoLegible(generoPorId.get(String(a.candidate_id)) ?? s(c.gender)), nacimiento: s(c.birth_date), nivel: s(c.education_level), hv: s(c.cv_url),
       postulacionId: String(a.id), estado: s(a.status), registradaEl: s(a.created_at),
       respuestas: (a.custom_answers ?? {}) as Persona['respuestas'],
+      perfil: perfilPorId.get(String(a.candidate_id)) ?? {},
       matricula: m ? { id: Number(m.id), estado: s(m.status), fecha: s(m.enrolled_at) } : null,
     };
   }).sort((x, y) => x.nombre.localeCompare(y.nombre, 'es'));

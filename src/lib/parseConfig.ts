@@ -36,7 +36,17 @@ export interface Pregunta {
   rangos?: { hasta?: number; label: string }[];
   /** razon: clave del divisor. */ entre?: string;
   /** alguna: claves que se revisan y prefijos que cuentan (p. ej. ["4", "5"]). */ claves?: string[]; en?: string[];
+  /** Valor guardado → texto que se muestra (p. ej. bloque perfil: { "true": Sí, menos_500k: Menos de $500.000 }). */
+  etiquetas?: Record<string, string>;
 }
+/**
+ * D-75: `bloque: perfil` = datos sociodemográficos del registro de la plataforma (socio_demographic_data), no un
+ * formulario. Solo los lee la capa privada (reporte de población); la función pública no los cuenta, por eso estas
+ * preguntas no pueden tener `grupo` (el informe Excel pide a la función las preguntas por grupo).
+ */
+export const BLOQUE_PERFIL = 'perfil';
+export const PERFIL_COLUMNAS = ['has_dependents', 'caregiving_responsibilities', 'internet_access', 'monthly_income', 'household_size',
+  'marital_status', 'ethnicity', 'disability_status', 'conflict_victim', 'migrant_status'] as const;
 /** Foco territorial (D-43): lo que no coincide se muestra como alerta, no se bloquea. */
 export interface Foco { nombre: string; coincide: string[]; personas?: string; empresas?: string }
 export interface CifraPestana {
@@ -87,18 +97,24 @@ export interface Informe { hojas: HojaInforme[] }
  */
 export const DATOS_REPORTE = ['genero', 'edad', 'municipio', 'nivel'] as const;
 export type DatoReporte = typeof DATOS_REPORTE[number];
-export const TIPOS_GRAFICO_REPORTE = ['barras', 'dona', 'apilada', 'ranking', 'cruce'] as const;
+export const TIPOS_GRAFICO_REPORTE = ['barras', 'dona', 'apilada', 'ranking', 'cruce', 'necesidades', 'grupos', 'embudo'] as const;
+/** D-75: paso del embudo de la ruta; se cuenta sobre TODAS las personas registradas en el periodo (no solo las del reporte). */
+export interface PasoEmbudo { label: string; regla: string; nota?: string }
 export interface GraficoReporte {
   titulo: string; nota?: string; tipo: typeof TIPOS_GRAFICO_REPORTE[number];
-  /** barras/dona: dato del registro o pregunta. */ dato?: DatoReporte; pregunta?: string;
-  /** apilada/ranking/cruce: una fila por pregunta. */ preguntas?: string[];
+  /** barras/dona: dato del registro o pregunta. cruce: con `pregunta` (en vez de `preguntas`) las filas son sus
+   *  categorías y cada celda es el % de la columna que la marca. */ dato?: DatoReporte; pregunta?: string;
+  /** apilada/ranking/cruce: una fila por pregunta (también `nec:<id>` y `grupo:<id>`). */ preguntas?: string[];
   /** apilada/ranking/cruce: categorías que suman el % (exactas o prefijo numérico: "4" = «4 - Alto»). */ destacar?: string[];
   /** cruce: columnas (dato del registro o pregunta). */ por?: string;
   /** barras/cruce: orden fijo de categorías. */ orden?: string[];
-  /** barras/ranking: cuántas mostrar (el resto va a «Otros» en barras). */ top?: number;
+  /** barras/ranking: cuántas mostrar (el resto va a «Resto» en barras). */ top?: number;
   /** barras/ranking: mujeres vs hombres (por defecto sí). */ porGenero?: boolean;
   /** apilada: escala = rampa ordinal; sino = Sí / No. */ paleta?: 'escala' | 'sino';
   /** La lectura principal del gráfico va a los hallazgos clave. */ hallazgo?: boolean;
+  /** barras: «Otro/Otros» sale de las barras y se informa aparte (calidad del dato, D-75). */ apartarOtros?: boolean;
+  /** embudo: pasos en orden. */ pasos?: PasoEmbudo[];
+  /** A todo el ancho (por defecto: apilada, ranking, cruce, necesidades, grupos y embudo). */ ancho?: boolean;
 }
 export interface CifraReporte {
   label: string;
@@ -106,8 +122,32 @@ export interface CifraReporte {
    *  pregunta + moda = categoría más frecuente; regla (etapas.ts) = % que la cumple (negar = % que no). */
   tipo?: 'personas' | 'mujeres'; pregunta?: string; destacar?: string[]; moda?: boolean; regla?: string; negar?: boolean; nota?: string;
 }
-export interface PaginaReporte { titulo: string; subtitulo?: string; cifras: CifraReporte[]; graficos: GraficoReporte[]; hallazgos?: boolean }
-export interface Reporte { titulo: string; completos: string[]; paginas: PaginaReporte[] }
+export interface PaginaReporte {
+  titulo: string; subtitulo?: string; cifras: CifraReporte[]; graficos: GraficoReporte[]; hallazgos?: boolean;
+  /** Recuadro de texto libre que el equipo escribe antes de imprimir (p. ej. lo recogido en territorio). Si queda vacío, no se imprime. */
+  observaciones?: string;
+  /** Tabla de calidad del dato: preguntas con baja respuesta y «Otros» sin especificar. */ calidad?: boolean;
+  /** Empieza en una hoja nueva (por defecto las secciones siguen una tras otra, sin espacios en blanco). */ nuevaHoja?: boolean;
+}
+/**
+ * D-75: matriz del plan de acción. Una persona tiene la necesidad si cumple AL MENOS UNA señal; una señal es una
+ * respuesta (`pregunta` + `en`, con la misma regla de `destacar`) o `todas` (deben cumplirse todas: «tiene dependientes
+ * y no tiene red de apoyo»). Sí = alguna señal; No = respondió alguna pregunta de la fila y ninguna es señal; sin dato
+ * = no respondió ninguna. En el reporte se usa como variable `nec:<id>` (Sí / No).
+ */
+export interface SenalNecesidad { pregunta: string; en: string[] }
+export interface Necesidad { id: string; titulo: string; apoyo?: string; senales: (SenalNecesidad | { todas: SenalNecesidad[] })[] }
+/** Grupo perfilado: Sí si tiene alguna de `necesidades`; `ninguna: true` = sin ninguna necesidad (lista para intermediación). Variable `grupo:<id>`. */
+export interface GrupoPerfilado { id: string; titulo: string; quienes?: string; servicio?: string; necesidades?: string[]; ninguna?: boolean }
+export interface Reporte {
+  titulo: string; completos: string[]; paginas: PaginaReporte[];
+  /** Cómo se nombran los formularios de `completos` en el reporte (p. ej. «el registro y la línea base»). */ completosTexto?: string;
+  necesidades: Necesidad[]; grupos: GrupoPerfilado[];
+  /** Prioridad dentro de cada grupo: cumple todas las señales (y es mujer si `mujeres`). Variable `prioridad`. */
+  prioridad?: { label: string; mujeres?: boolean; senales: SenalNecesidad[] };
+  /** Excel «matriz por persona»: columnas extra (dato del registro o pregunta) además de necesidades, grupos y prioridad. */
+  matriz?: { columnas: string[] };
+}
 
 export interface DashboardConfig {
   identidad: {
@@ -335,6 +375,11 @@ function validarPestanas(p: unknown, q: unknown, f: unknown, inf: unknown) {
     if (tipo === 'alguna' ? !x.claves?.length || !x.en?.length : !x.clave) err(`preguntas[${i}] (${x.id}) necesita ${tipo === 'alguna' ? 'claves y en' : 'clave'}`);
     if (['monto', 'numero', 'rango', 'razon'].includes(tipo) && !x.rangos?.length) err(`preguntas[${i}] (${x.id}) necesita rangos`);
     if (tipo === 'razon' && !x.entre) err(`preguntas[${i}] (${x.id}) necesita entre`);
+    if (x.bloque === BLOQUE_PERFIL) {
+      if (!(PERFIL_COLUMNAS as readonly string[]).includes(String(x.clave))) err(`preguntas[${i}] (${x.id}): en el bloque perfil la clave es una de ${PERFIL_COLUMNAS.join(', ')}`);
+      if (x.grupo) err(`preguntas[${i}] (${x.id}): las preguntas del bloque perfil no llevan grupo (la función pública no las cuenta)`);
+      if (x.si || tipo === 'alguna' || tipo === 'razon') err(`preguntas[${i}] (${x.id}): el bloque perfil no admite si, alguna ni razon`);
+    }
     return { ...x, tipo, titulo: x.titulo ?? x.id } as Pregunta;
   });
   const ids = new Set(preguntas.map(x => x.id));
@@ -387,7 +432,40 @@ function validarReporte(r: unknown, pr: unknown): Reporte | null {
   const x = r as Partial<Reporte>;
   if (!Array.isArray(x.paginas) || !x.paginas.length) err(' necesita paginas (lista)');
   const ids = new Set(((pr ?? []) as { id?: string }[]).map(p => p?.id));
-  const existe = (id: unknown, donde: string) => { if (!ids.has(String(id))) err(`${donde}: la pregunta «${id}» no está en preguntas`); };
+  const existePregunta = (id: unknown, donde: string) => { if (!ids.has(String(id))) err(`${donde}: la pregunta «${id}» no está en preguntas`); };
+  const senal = (s: Partial<SenalNecesidad>, d: string): SenalNecesidad => {
+    if (!s?.pregunta || !Array.isArray(s.en) || !s.en.length) err(`${d}: cada señal necesita pregunta y en (lista)`);
+    existePregunta(s.pregunta, d);
+    return { pregunta: s.pregunta!, en: s.en!.map(String) };
+  };
+  const necesidades: Necesidad[] = ((x.necesidades ?? []) as Partial<Necesidad>[]).map((n, i) => {
+    const d = `.necesidades[${i}]`;
+    if (!n?.id || !n.titulo || !Array.isArray(n.senales) || !n.senales.length) err(`${d} necesita id, titulo y senales`);
+    return { ...n, senales: n.senales!.map((s, j) => 'todas' in (s as object)
+      ? { todas: ((s as { todas: SenalNecesidad[] }).todas ?? []).map((t, k) => senal(t, `${d}.senales[${j}].todas[${k}]`)) }
+      : senal(s as SenalNecesidad, `${d}.senales[${j}]`)) } as Necesidad;
+  });
+  const idsNec = new Set(necesidades.map(n => n.id));
+  if (idsNec.size !== necesidades.length) err('.necesidades: hay ids repetidos');
+  const grupos: GrupoPerfilado[] = ((x.grupos ?? []) as Partial<GrupoPerfilado>[]).map((g, i) => {
+    const d = `.grupos[${i}]`;
+    if (!g?.id || !g.titulo || (!g.ninguna && !g.necesidades?.length)) err(`${d} necesita id, titulo y necesidades (o ninguna: true)`);
+    g.necesidades?.forEach(n => { if (!idsNec.has(n)) err(`${d}: la necesidad «${n}» no está en reporte.necesidades`); });
+    return g as GrupoPerfilado;
+  });
+  const idsGrupo = new Set(grupos.map(g => g.id));
+  const prioridad = x.prioridad
+    ? { ...x.prioridad, senales: (x.prioridad.senales ?? []).map((s, j) => senal(s, `.prioridad.senales[${j}]`)) }
+    : undefined;
+  if (prioridad && !prioridad.label) err('.prioridad necesita label');
+  // Variables del reporte: preguntas, datos del registro, nec:<id>, grupo:<id> y prioridad.
+  const existe = (id: unknown, donde: string) => {
+    const t = String(id);
+    if (t.startsWith('nec:')) { if (!idsNec.has(t.slice(4))) err(`${donde}: la necesidad «${t.slice(4)}» no está en reporte.necesidades`); return; }
+    if (t.startsWith('grupo:')) { if (!idsGrupo.has(t.slice(6))) err(`${donde}: el grupo «${t.slice(6)}» no está en reporte.grupos`); return; }
+    if (t === 'prioridad') { if (!prioridad) err(`${donde}: «prioridad» necesita reporte.prioridad`); return; }
+    existePregunta(t, donde);
+  };
   const paginas = x.paginas!.map((p, i) => {
     const dp = `.paginas[${i}]`;
     if (!p?.titulo) err(`${dp} necesita titulo`);
@@ -398,6 +476,16 @@ function validarReporte(r: unknown, pr: unknown): Reporte | null {
         if (!g.dato === !g.pregunta) err(`${d}: ${g.tipo} necesita dato (${DATOS_REPORTE.join(', ')}) o pregunta, solo uno`);
         if (g.dato && !ES_DATO(g.dato)) err(`${d}: dato «${g.dato}» no existe (válidos: ${DATOS_REPORTE.join(', ')})`);
         if (g.pregunta) existe(g.pregunta, d);
+      } else if (g.tipo === 'necesidades') {
+        if (!necesidades.length) err(`${d}: necesidades necesita reporte.necesidades`);
+      } else if (g.tipo === 'grupos') {
+        if (!grupos.length) err(`${d}: grupos necesita reporte.grupos`);
+      } else if (g.tipo === 'embudo') {
+        if (!g.pasos?.length) err(`${d}: embudo necesita pasos ({ label, regla })`);
+        g.pasos!.forEach((s, k) => { if (!s?.label || !s.regla) err(`${d}.pasos[${k}] necesita label y regla`); });
+      } else if (g.tipo === 'cruce' && g.pregunta) {
+        if (g.preguntas?.length) err(`${d}: cruce lleva pregunta o preguntas, no las dos`);
+        if (!ES_DATO(g.pregunta)) existe(g.pregunta, d);
       } else {
         if (!g.preguntas?.length) err(`${d}: ${g.tipo} necesita preguntas`);
         g.preguntas!.forEach(id => existe(id, d));
@@ -419,7 +507,9 @@ function validarReporte(r: unknown, pr: unknown): Reporte | null {
     if (cifras.length > 6) err(`${dp}: máximo 6 cifras`);
     return { ...p, cifras, graficos } as PaginaReporte;
   });
-  return { titulo: x.titulo ?? 'Reporte de población', completos: (x.completos ?? []).map(String), paginas };
+  const matriz = x.matriz ? { columnas: (x.matriz.columnas ?? []).map(String) } : undefined;
+  matriz?.columnas.forEach(c => { if (!ES_DATO(c)) existe(c, '.matriz.columnas'); });
+  return { titulo: x.titulo ?? 'Reporte de población', completos: (x.completos ?? []).map(String), completosTexto: x.completosTexto, paginas, necesidades, grupos, prioridad, matriz };
 }
 
 function validarModulos(m: unknown): Modulo[] {

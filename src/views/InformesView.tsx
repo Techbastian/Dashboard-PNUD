@@ -150,7 +150,7 @@ export default function InformesView() {
           )}
         </div>
         <p className="text-[11px] font-bold text-slate-400">Excel = detalle, una tabla por pregunta. {config.reporte
-          ? `PDF = ${config.reporte.titulo.toLowerCase()}: gráficos por tema, carta vertical (elige «Guardar como PDF»).`
+          ? `PDF = ${config.reporte.titulo.toLowerCase()}: gráficos por tema, carta vertical (elige «Guardar como PDF»).${config.reporte.necesidades.length ? ' Desde su vista previa se descarga también la matriz del plan de acción por persona (Excel).' : ''}`
           : 'PDF = las pestañas del Dashboard, una por página (elige «Guardar como PDF»).'}</p>
         {config.reporte && (
           <fieldset className="border-t border-slate-100 pt-4 space-y-3">
@@ -166,7 +166,7 @@ export default function InformesView() {
               </label>
             </div>
             <p className="text-[11px] font-medium text-slate-400">
-              Solo personas que respondieron {config.reporte.completos.join(' y ')}; las respuestas vacías nunca se cuentan.
+              Solo personas que respondieron {config.reporte.completosTexto ?? config.reporte.completos.join(' y ')}; las respuestas vacías nunca se cuentan.
               «Hasta» es la misma fecha de corte del Excel. Sin fechas = todo lo registrado.
             </p>
           </fieldset>

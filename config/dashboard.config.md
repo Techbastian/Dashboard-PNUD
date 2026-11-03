@@ -240,6 +240,43 @@ preguntas:
   - { id: sector_previo,       grupo: registro, bloque: recorrer-pnud, clave: a_que_sector_economico_pertenece_la_empresa_en_la_que_laboro, titulo: Sector de la empresa donde laboró }
   - { id: buscando_empleo,     grupo: registro, bloque: recorrer-pnud, clave: actualmente_esta_buscando_empleo, titulo: ¿Está buscando empleo? }
   - { id: fortalecer,          grupo: registro, bloque: recorrer-pnud, clave: esta_interesado_en_fortalecer_sus_destrezas_laborales_y_ocup, titulo: ¿Le interesa fortalecer sus destrezas laborales? }
+  # P-44: preguntas del registro que alimentan la matriz del plan de acción y el perfil ocupacional (Guía operativa, sección 5)
+  - { id: ha_trabajado,        grupo: registro, bloque: recorrer-pnud, clave: ha_trabajado_anteriormente, titulo: ¿Ha trabajado anteriormente? }
+  - { id: sector_interes,      grupo: registro, bloque: recorrer-pnud, clave: en_que_sector_le_interesa_laborar, titulo: Sector en el que le interesa laborar }
+  - { id: oficio_interes,      grupo: registro, bloque: recorrer-pnud, clave: en_que_oficio_actividad_labor_esta_interesada_o_en_laborar, titulo: Oficio o labor en la que le interesa trabajar }
+  - { id: razones_trabajar,    grupo: registro, bloque: recorrer-pnud, clave: cuales_son_las_principales_razones_por_las_que_le_gustaria_t, titulo: Razón principal para trabajar }
+  - { id: certificaciones,     grupo: registro, bloque: recorrer-pnud, clave: cuenta_con_certificaciones_laborales_que_respalden_su_experi, titulo: ¿Tiene certificaciones laborales de su experiencia? }
+  - { id: red_apoyo,           grupo: registro, bloque: recorrer-pnud, clave: cuenta_con_una_red_de_apoyo_familiares_amigos_u_otras_person, titulo: ¿Tiene red de apoyo para el cuidado mientras trabaja? }
+  - { id: preparado_entrevista, grupo: registro, bloque: recorrer-pnud, clave: se_siente_preparado_a_para_una_entrevista_laboral_nada_1_ten, tipo: escala, titulo: ¿Se siente preparado/a para una entrevista? (1 a 5) }
+  - { id: documentos_dia,      grupo: registro, bloque: recorrer-pnud, clave: dispone_de_todos_sus_documentos_al_dia_cedula_permisos_certi, titulo: ¿Tiene todos sus documentos al día? }
+  - { id: costos_documentos,   grupo: registro, bloque: recorrer-pnud, clave: tiene_dificultades_para_cubrir_los_costos_de_las_certificaci, titulo: ¿Tiene dificultades para cubrir el costo de documentos faltantes? }
+  - { id: conoce_mercado,      grupo: registro, bloque: recorrer-pnud, clave: conoce_como_se_mueve_el_empleo_en_su_region_como_contratan_l, titulo: ¿Conoce cómo se mueve el empleo en su región y sus derechos laborales? }
+  - { id: conoce_spe,          grupo: registro, bloque: recorrer-pnud, clave: conoce_la_oferta_del_servicios_publico_de_empleo_y_los_canal, titulo: ¿Conoce la oferta del Servicio Público de Empleo? }
+  - { id: tiene_competencias,  grupo: registro, bloque: recorrer-pnud, clave: considera_que_tiene_las_competencias_y_la_experiencia_necesa, titulo: ¿Tiene las competencias y la experiencia para los empleos de su interés? }
+  - { id: oportunidades_zona,  grupo: registro, bloque: recorrer-pnud, clave: percibe_que_existen_oportunidades_laborales_en_su_zona_1_nad, tipo: escala, titulo: ¿Percibe oportunidades laborales en su zona? (1 a 5) }
+  - { id: vestuario_formal,    grupo: registro, bloque: recorrer-pnud, clave: cuenta_con_un_vestuario_formal_para_presentarse_a_una_entrev, titulo: ¿Tiene vestuario formal para una entrevista? }
+  - { id: recursos_transporte, grupo: registro, bloque: recorrer-pnud, clave: cuenta_con_los_recursos_economicos_para_tomar_un_transporte, titulo: ¿Tiene recursos para el transporte a una entrevista o los primeros días? }
+
+  # ── Perfil del registro de la plataforma (bloque perfil, D-75 · P-44) ──
+  # Datos sociodemográficos (socio_demographic_data). Solo el reporte de población los usa; sin grupo: la función pública no los cuenta.
+  - { id: tiene_dependientes,  bloque: perfil, clave: has_dependents, titulo: ¿Tiene personas dependientes?, etiquetas: { "true": Sí, "false": "No" } }
+  - id: personas_cuidado
+    bloque: perfil
+    clave: caregiving_responsibilities
+    titulo: Personas a su cuidado
+    etiquetas: { hijos: Hijos, adultos_mayores: Adultos mayores, personas_discapacidad: Personas con discapacidad, persona_con_enfermedad: Persona con enfermedad, multiple: Varias, ninguna: Ninguna }
+  - { id: internet,            bloque: perfil, clave: internet_access, titulo: Acceso a internet, etiquetas: { estable: Estable, inestable: Inestable, dificultad: Con dificultad, no_acceso: Sin acceso } }
+  - id: ingresos_registro
+    bloque: perfil
+    clave: monthly_income
+    titulo: Ingresos mensuales (registro)
+    etiquetas: { menos_500k: "Menos de $500.000", 500k_1m: "$500.000 – $1.000.000", 1m_2m: "$1.000.000 – $2.000.000", 2m_4m: "$2.000.000 – $4.000.000", mas_4m: "Más de $4.000.000", prefiero_no_decir: Prefiere no decir }
+  - id: personas_hogar_registro
+    bloque: perfil
+    clave: household_size
+    tipo: numero
+    titulo: Personas en el hogar (registro)
+    rangos: [{ hasta: 1, label: "1" }, { hasta: 2, label: "2" }, { hasta: 3, label: "3" }, { hasta: 4, label: "4" }, { label: 5 o más }]
 
   # ── Línea base (bloque linea-base) · 1. Caracterización ──
   - { id: grupos_poblacionales, grupo: linea_base, bloque: linea-base, clave: usted_considera_que_pertenece_a_uno_o_varios_de_los_siguient, tipo: multiple, titulo: Grupos poblacionales }
@@ -487,37 +524,141 @@ informe:
         - { titulo: "Vacantes: modalidad", datos: vacantes.por_modalidad }
 ```
 
-## Reporte ejecutivo de población (PDF, P-41 · D-74 de la plantilla)
+## Reporte ejecutivo de población (PDF, P-41 · v2 P-44 · D-74/D-75 de la plantilla)
 
-Insumo para el informe PNUD (reunión «Data Recorrer», 29-oct). Estudia la población: sin hitos ni empresas. Rango de
-fechas de registro (sirve para cualquier evento entre dos fechas), todo por género, y **solo personas que respondieron el
-registro y la línea base**; las respuestas vacías no se cuentan en ningún gráfico (cada uno dice sobre cuántas personas). Hallazgos calculados por el sistema. Sin test de Holland
-en esta versión (no está en la plataforma).
+Insumo para el informe PNUD. Estudia la población: sin hitos ni empresas. Rango de fechas de registro (sirve para
+cualquier evento entre dos fechas), todo por género, y **solo personas que respondieron el registro y la línea base**;
+las respuestas vacías no se cuentan (cada gráfico dice sobre cuántas personas y, si no respondieron todas, a cuántas
+les aplicaba). Hallazgos calculados por el sistema. Sin test de Holland (no está en la plataforma).
+
+**v2 (P-44, 02-nov)** — reunión «Data Recorrer 2» (30-oct) y *Guía operativa · Ruta Recorrer Meta*:
+- Las secciones fluyen sin una hoja por tema (el PDF v1 tenía ~10 hojas con espacios en blanco).
+- Cruces nuevos: barreras × edad, barreras × grupo poblacional, necesidades × edad y × grupo poblacional, tipo de
+  empleo × nivel educativo. El género va en cada barra (M / H).
+- **Matriz del plan de acción** (guía, sección 5): 10 necesidades; señal = respuesta del registro o barrera 4–5 de la
+  línea base (basta una). **Grupos perfilados G1–G6** (una persona puede estar en varios; G6 = sin ninguna necesidad).
+  **Prioridad** = mujeres con personas a cargo. Excel «Matriz por persona» (con datos personales, solo equipo).
+- Perfil ocupacional (sector, oficio, razones, competencias, tipo de empleo) y preparación / mercado laboral.
+- Embudo de la ruta sobre todas las registradas del periodo.
+- «Otros» sin especificar se informa aparte (habilidades y competencias técnicas) y una tabla de calidad del dato.
+- Recuadro de observaciones del equipo (lo recogido en territorio): se escribe en la vista previa; vacío no se imprime.
+- Pendiente de la guía, fuera de la plataforma: test de Holland, cursos recomendados (Excel del perfilamiento), Ficha 3
+  y el registro de cada servicio prestado. «Proceso de selección en curso» como criterio de prioridad no se usa aún.
 
 ```yaml
 reporte:
   titulo: Reporte de población
   completos: [recorrer-pnud, linea-base]
+  completosTexto: el registro y la línea base
+
+  # Matriz del plan de acción (Guía operativa, sección 5). Escala de barreras: señal = 4 o 5.
+  necesidades:
+    - id: transporte
+      titulo: Transporte
+      apoyo: Apoyo para transporte
+      senales:
+        - { pregunta: recursos_transporte, en: ["No", Definitivamente no, "Sí, sacrificando otras necesidades básicas"] }
+        - { pregunta: b_transporte, en: ["4", "5"] }
+        - { pregunta: b_dependencia, en: ["4", "5"] }
+    - id: presentacion
+      titulo: Presentación personal
+      apoyo: Dotación básica para procesos de selección
+      senales:
+        - { pregunta: vestuario_formal, en: ["No"] }
+        - { pregunta: b_vestuario, en: ["4", "5"] }
+    - id: cuidado
+      titulo: Cuidado
+      apoyo: Apoyo parcial para servicios de cuidado
+      senales:
+        - todas: [{ pregunta: tiene_dependientes, en: [Sí] }, { pregunta: red_apoyo, en: ["No"] }]
+        - { pregunta: b_cuidado, en: ["4", "5"] }
+        - { pregunta: b_conciliar, en: ["4", "5"] }
+        - { pregunta: apoyo_cuidado, en: [Nunca] }
+    - id: conectividad
+      titulo: Conectividad
+      apoyo: Auxilio de conectividad y acompañamiento para entrar a los cursos
+      senales:
+        - { pregunta: internet, en: [Sin acceso] }
+        - { pregunta: b_recursos, en: ["4", "5"] }
+        - { pregunta: b_virtuales, en: ["4", "5"] }
+    - id: documentos
+      titulo: Documentos
+      apoyo: Remisión y orientación para el trámite (no es apoyo económico)
+      senales:
+        - { pregunta: documentos_dia, en: ["No", Necesita gestionar un documento importante para trabajar] }
+        - { pregunta: costos_documentos, en: [Sí] }
+        - { pregunta: b_tramites, en: ["4", "5"] }
+    - id: certificar
+      titulo: Certificar lo que ya sabe
+      apoyo: Certificación de competencias (por definir)
+      senales:
+        - { pregunta: certificar, en: [Sí] }
+        - { pregunta: certificaciones, en: ["No"] }
+        - { pregunta: b_certificacion, en: ["4", "5"] }
+    - id: formacion_tecnica
+      titulo: Formación técnica
+      apoyo: Curso técnico (por definir)
+      senales:
+        - { pregunta: requiere_curso, en: [Sí] }
+        - { pregunta: tiene_competencias, en: ["No"] }
+        - { pregunta: b_tecnicas, en: ["4", "5"] }
+    - id: preparacion
+      titulo: Preparación para entrevistas y habilidades transversales
+      apoyo: Curso virtual «Ruta para la empleabilidad 2026» y refuerzo en el seguimiento
+      senales:
+        - { pregunta: preparado_entrevista, en: ["1", "2"] }
+        - { pregunta: b_transversales, en: ["4", "5"] }
+        - { pregunta: b_cultura, en: ["4", "5"] }
+        - { pregunta: capacidad_empleo, en: ["1", "2"] }
+    - id: mercado
+      titulo: Conocimiento del mercado laboral
+      apoyo: Registro y orientación en el SPE
+      senales:
+        - { pregunta: conoce_mercado, en: ["No"] }
+        - { pregunta: conoce_spe, en: ["No"] }
+        - { pregunta: apoyo_orientacion, en: ["No"] }
+    - id: discriminacion
+      titulo: Discriminación o ajustes
+      apoyo: Ajuste razonable o acompañamiento en la intermediación
+      senales:
+        - { pregunta: b_discriminacion, en: ["4", "5"] }
+
+  grupos:
+    - { id: G1, titulo: "G1 · Barreras económicas inmediatas", quienes: Transporte o presentación personal, necesidades: [transporte, presentacion], servicio: "Apoyo para transporte o dotación, por llamada y correo, cuando tenga una entrevista o un inicio de labores" }
+    - { id: G2, titulo: "G2 · Cuidado", quienes: Dependientes sin red de apoyo, necesidades: [cuidado], servicio: "Apoyo parcial para servicios de cuidado; prioridad mujeres con hijos menores" }
+    - { id: G3, titulo: "G3 · Conectividad y uso digital", quienes: Sin internet o con dificultad en trámites virtuales, necesidades: [conectividad], servicio: Auxilio de conectividad y acompañamiento telefónico para entrar a los cursos }
+    - { id: G4, titulo: "G4 · Formación técnica y certificación", quienes: Requiere un curso técnico o certificar una habilidad, necesidades: [formacion_tecnica, certificar], servicio: Análisis de cursos técnicos con el presupuesto de mitigación }
+    - { id: G5, titulo: "G5 · Preparación para el empleo", quienes: Baja preparación para entrevistas o poco conocimiento del mercado laboral, necesidades: [preparacion, mercado], servicio: "Curso «Ruta para la empleabilidad 2026», registro en el SPE y refuerzo en el seguimiento" }
+    - { id: G6, titulo: "G6 · Lista para intermediación", quienes: Sin señales en ninguna necesidad, ninguna: true, servicio: Intermediación directa con vacantes }
+
+  prioridad: { label: Mujeres con personas a cargo, mujeres: true, senales: [{ pregunta: tiene_dependientes, en: [Sí] }] }
+
+  # Excel «Matriz por persona»: además de necesidades, señales, grupos y prioridad (preguntas que orientan y priorizan).
+  matriz:
+    columnas: [municipio, nivel, grupos_poblacionales, discapacidad, tiene_dependientes, personas_cuidado, ingresos_registro, personas_hogar_registro, hogar_depende, sector_interes, oficio_interes, razones_trabajar, tipo_empleo, competencias_transv, habilidades_oficios, ha_trabajado, preparado_entrevista]
+
   paginas:
     - titulo: Resumen en cifras
       cifras:
-        - { label: Personas en el reporte, tipo: personas }
-        - { label: Mujeres, tipo: mujeres }
-        - { label: Con al menos una barrera alta, pregunta: barrera_alta, destacar: [Sí], nota: Califican alguna de las 15 barreras con 4 o 5 }
-        - { label: Sin hoja de vida, regla: hv, negar: true, nota: Sin hoja de vida cargada en la plataforma }
+        - { label: Con al menos una barrera alta, pregunta: barrera_alta, destacar: [Sí], nota: Alguna de las 15 barreras en 4 o 5 }
+        - { label: Con al menos una necesidad, pregunta: "grupo:G6", destacar: ["No"], nota: De la matriz del plan de acción }
+        - { label: Mujeres con personas a cargo, pregunta: prioridad, destacar: [Sí], nota: Prioridad en los servicios }
         - { label: Ingreso personal más frecuente, pregunta: ingresos_personales, moda: true }
-        - { label: No le alcanza para alimentación, pregunta: cubre_alimentacion, destacar: [No] }
+        - { label: No le alcanza para alimentación, pregunta: cubre_alimentacion, destacar: ["No"] }
+        - { label: Sin hoja de vida, regla: hv, negar: true, nota: Sin hoja de vida en la plataforma }
       hallazgos: true
 
     - titulo: ¿Quiénes son?
-      subtitulo: Caracterización de las personas
+      subtitulo: Caracterización general
       graficos:
         - { titulo: Género, nota: Registro, tipo: dona, dato: genero }
         - { titulo: Edad, nota: Registro · fecha de nacimiento, tipo: barras, dato: edad, hallazgo: true }
-        - { titulo: Municipio de residencia, nota: Registro · los 8 más frecuentes, tipo: barras, dato: municipio, top: 8 }
         - { titulo: Grupos poblacionales, nota: Línea base, tipo: barras, pregunta: grupos_poblacionales, hallazgo: true }
+        - { titulo: Municipio de residencia, nota: Registro · los 8 más frecuentes, tipo: barras, dato: municipio, top: 8 }
         - { titulo: Área, nota: Registro, tipo: barras, pregunta: area }
         - { titulo: Persona en condición de discapacidad, nota: Línea base, tipo: barras, pregunta: discapacidad }
+        - { titulo: ¿Tiene personas dependientes?, nota: Registro, tipo: barras, pregunta: tiene_dependientes }
+        - { titulo: Personas a su cuidado, nota: Registro, tipo: barras, pregunta: personas_cuidado }
 
     - titulo: Educación y formación
       graficos:
@@ -528,7 +669,7 @@ reporte:
           orden: &niveles [Ninguno, Primaria, Secundaria, Media Bachiller, Técnico, Tecnológico, Profesional, Profesional universitario, Especialización, Maestría, Doctorado]
           hallazgo: true
         - { titulo: ¿Está estudiando actualmente?, nota: Línea base, tipo: barras, pregunta: estudiando }
-        - { titulo: Razón principal por la que no estudia, nota: Línea base · quienes no estudian, tipo: barras, pregunta: razon_no_estudia, hallazgo: true }
+        - { titulo: Razón principal por la que no estudia, nota: Línea base · quienes no estudian, tipo: barras, pregunta: razon_no_estudia }
         - { titulo: ¿Ha asistido a capacitación para el trabajo?, nota: Línea base, tipo: barras, pregunta: capacitacion }
         - { titulo: ¿Requiere certificar una habilidad?, nota: Registro, tipo: barras, pregunta: certificar }
         - { titulo: ¿Requiere formación para el trabajo o un curso corto?, nota: Registro, tipo: barras, pregunta: requiere_curso }
@@ -542,39 +683,81 @@ reporte:
           destacar: ["4", "5"]
           preguntas: &barreras [b_cultura, b_vestuario, b_transporte, b_cuidado, b_conciliar, b_discriminacion, b_convalidacion, b_transversales, b_tecnicas, b_certificacion, b_tramites, b_dependencia, b_recursos, b_financiera, b_virtuales]
           hallazgo: true
-        - { titulo: Barreras por nivel educativo, nota: "% que la califica 4 o 5 dentro de cada nivel", tipo: cruce, por: nivel, orden: *niveles, destacar: ["4", "5"], preguntas: *barreras, hallazgo: true }
+        - { titulo: Barreras por rango de edad, nota: "% que la califica 4 o 5 dentro de cada rango", tipo: cruce, por: edad, destacar: ["4", "5"], preguntas: *barreras, hallazgo: true }
+        - { titulo: Barreras por nivel educativo, nota: "% que la califica 4 o 5 dentro de cada nivel", tipo: cruce, por: nivel, orden: *niveles, destacar: ["4", "5"], preguntas: *barreras }
+        - { titulo: Barreras por grupo poblacional, nota: "% que la califica 4 o 5 dentro de cada grupo · una persona puede estar en varios", tipo: cruce, por: grupos_poblacionales, destacar: ["4", "5"], preguntas: *barreras, hallazgo: true }
         - { titulo: Barreras que quiere mitigar, nota: Línea base · quienes esperan mitigar barreras de la ruta, tipo: barras, pregunta: barreras_mitigar }
         - { titulo: Ajustes o productos de apoyo que requiere, nota: Línea base, tipo: barras, pregunta: ajustes_apoyo }
+        - { titulo: Situación de discriminación vivida, nota: Línea base · quienes califican la discriminación de 2 a 5, tipo: barras, pregunta: situacion_discriminacion }
+
+    - titulo: Necesidades y grupos para el plan de acción
+      subtitulo: "Matriz de la guía operativa: señal en el registro o barrera 4–5 en la línea base"
+      cifras:
+        - { label: Lista para intermediación, pregunta: "grupo:G6", destacar: [Sí], nota: Sin ninguna necesidad (G6) }
+        - { label: El hogar depende totalmente de sus ingresos, pregunta: hogar_depende, destacar: [Totalmente], nota: Para priorizar }
+        - { label: Tiene personas dependientes, pregunta: tiene_dependientes, destacar: [Sí], nota: Para priorizar }
+      graficos:
+        - { titulo: Necesidades detectadas, nota: "% con al menos una señal en la fila · el detalle por persona va en el Excel «Matriz por persona»", tipo: necesidades, hallazgo: true }
+        - { titulo: Grupos perfilados, nota: Servicio de mitigación según la tendencia, tipo: grupos, hallazgo: true }
+        - { titulo: Necesidades por rango de edad, nota: "% con la necesidad dentro de cada rango", tipo: cruce, por: edad, destacar: [Sí], preguntas: ["nec:transporte", "nec:presentacion", "nec:cuidado", "nec:conectividad", "nec:documentos", "nec:certificar", "nec:formacion_tecnica", "nec:preparacion", "nec:mercado", "nec:discriminacion"], hallazgo: true }
+        - { titulo: Necesidades por grupo poblacional, nota: "% con la necesidad dentro de cada grupo", tipo: cruce, por: grupos_poblacionales, destacar: [Sí], preguntas: ["nec:transporte", "nec:presentacion", "nec:cuidado", "nec:conectividad", "nec:documentos", "nec:certificar", "nec:formacion_tecnica", "nec:preparacion", "nec:mercado", "nec:discriminacion"] }
 
     - titulo: Economía del hogar
       subtitulo: Ingresos, gastos y autonomía económica
       graficos:
-        - { titulo: Ingresos personales del mes pasado, nota: Línea base, tipo: barras, pregunta: ingresos_personales, porGenero: true }
+        - { titulo: Ingresos personales del mes pasado, nota: Línea base, tipo: barras, pregunta: ingresos_personales, hallazgo: true }
         - { titulo: Ingresos del hogar del último mes, nota: Línea base, tipo: barras, pregunta: ingresos_hogar }
         - { titulo: ¿Sus ingresos le alcanzan para…?, nota: "Línea base · el número es el % que responde «No»", tipo: apilada, paleta: sino, destacar: ["No"], preguntas: [cubre_alimentacion, cubre_vivienda, cubre_servicios, cubre_salud, cubre_vestuario, ahorrar], hallazgo: true }
         - { titulo: Gasto del hogar por rubro, nota: Línea base · mes anterior, tipo: apilada, preguntas: [gasto_alimentacion, gasto_vivienda, gasto_transporte, gasto_salud, gasto_educacion, gasto_vestuario, gasto_limpieza, gasto_deudas] }
-        - { titulo: ¿Ha recurrido a préstamos informales (gota a gota)?, nota: Línea base, tipo: barras, pregunta: gota_a_gota }
+        - { titulo: ¿El hogar depende de sus ingresos?, nota: Línea base, tipo: barras, pregunta: hogar_depende }
         - { titulo: Quién aporta la mayor parte de los ingresos, nota: Línea base, tipo: barras, pregunta: aporte_mayor }
+        - { titulo: ¿Ha recurrido a préstamos informales (gota a gota)?, nota: Línea base, tipo: barras, pregunta: gota_a_gota }
+        - { titulo: Acceso a internet, nota: Registro, tipo: barras, pregunta: internet }
 
-    - titulo: Intereses y empleabilidad
+    - titulo: Perfil ocupacional e intereses
+      subtitulo: Orientan la ocupación y los cursos
       graficos:
         - { titulo: Tipo de empleo que le gustaría conseguir, nota: Línea base, tipo: barras, pregunta: tipo_empleo, hallazgo: true }
-        - { titulo: ¿Le interesa fortalecer sus destrezas laborales?, nota: Registro, tipo: barras, pregunta: fortalecer }
-        - { titulo: "Habilidades, oficios o conocimientos prácticos", nota: Registro · los 8 más frecuentes, tipo: barras, pregunta: habilidades_oficios, top: 8, hallazgo: true }
-        - { titulo: Competencias técnicas con mayores fortalezas, nota: Línea base · las 8 más frecuentes, tipo: barras, pregunta: competencias_tecnicas, top: 8 }
-        - { titulo: ¿Qué tan capaz se siente de conseguir empleo?, nota: "Línea base · 1 a 5 · pregunta que generó confusión (reunión 29-oct)", tipo: barras, pregunta: capacidad_empleo }
-        - { titulo: ¿Está buscando empleo?, nota: Registro, tipo: barras, pregunta: buscando_empleo }
+        - { titulo: Razón principal para trabajar, nota: Registro, tipo: barras, pregunta: razones_trabajar }
+        - { titulo: Sector en el que le interesa laborar, nota: Registro · los 8 más frecuentes, tipo: barras, pregunta: sector_interes, top: 8, hallazgo: true }
+        - { titulo: Oficio o labor de interés, nota: Registro · los 8 más frecuentes, tipo: barras, pregunta: oficio_interes, top: 8 }
+        - { titulo: Competencias transversales más fuertes, nota: Registro · las 8 más frecuentes, tipo: barras, pregunta: competencias_transv, top: 8 }
+        - { titulo: "Habilidades, oficios o conocimientos prácticos", nota: Registro · los 8 más frecuentes, tipo: barras, pregunta: habilidades_oficios, top: 8, apartarOtros: true }
+        - { titulo: Competencias técnicas con mayores fortalezas, nota: Línea base · las 8 más frecuentes, tipo: barras, pregunta: competencias_tecnicas, top: 8, apartarOtros: true }
+        - { titulo: ¿Ha trabajado anteriormente?, nota: Registro, tipo: barras, pregunta: ha_trabajado }
+        - { titulo: Tipo de empleo que quiere según nivel educativo, nota: "% de cada nivel que elige cada tipo de empleo", tipo: cruce, pregunta: tipo_empleo, por: nivel, orden: *niveles }
 
-    - titulo: La ruta y lo que sigue
-      cifras:
-        - { label: Con hoja de vida, regla: hv, nota: Cargada en la plataforma }
-        - { label: Con perfilamiento, regla: "documentos:perfilamiento", nota: Informe individual cargado }
-        - { label: Atendidas en mitigación, regla: "union:mitigacion", nota: Soporte de mitigación o sesión formativa }
+    - titulo: Preparación y mercado laboral
       graficos:
-        - { titulo: Expectativas de la ruta Recorrer, nota: Línea base, tipo: barras, pregunta: expectativas, hallazgo: true }
-        - { titulo: Calificación de la ruta hasta el momento, nota: Línea base · 1 a 5, tipo: barras, pregunta: calificacion_ruta }
+        - { titulo: ¿Se siente preparado/a para una entrevista?, nota: Registro · 1 = nada, 5 = bastante, tipo: barras, pregunta: preparado_entrevista }
+        - { titulo: ¿Qué tan capaz se siente de conseguir empleo?, nota: "Línea base · 1 a 5", tipo: barras, pregunta: capacidad_empleo }
+        - { titulo: ¿Percibe oportunidades laborales en su zona?, nota: Registro · 1 = nada, 5 = muchas, tipo: barras, pregunta: oportunidades_zona }
+        - { titulo: ¿Tiene las competencias para los empleos de su interés?, nota: Registro, tipo: barras, pregunta: tiene_competencias }
+        - { titulo: ¿Conoce cómo se mueve el empleo en su región?, nota: Registro, tipo: barras, pregunta: conoce_mercado }
+        - { titulo: ¿Conoce la oferta del Servicio Público de Empleo?, nota: Registro, tipo: barras, pregunta: conoce_spe }
         - { titulo: ¿Ha tenido apoyo y orientación laboral de alguna entidad?, nota: Línea base, tipo: barras, pregunta: apoyo_orientacion }
         - { titulo: Entidad que brindó la orientación, nota: Línea base · quienes tuvieron apoyo, tipo: barras, pregunta: entidad_orientacion }
+
+    - titulo: La ruta y lo que sigue
+      graficos:
+        - titulo: Avance en la ruta Recorrer
+          nota: Personas registradas en el periodo (con o sin línea base)
+          tipo: embudo
+          pasos:
+            - { label: Registro inicial, regla: "formulario:recorrer-pnud", nota: E1 · Me registro }
+            - { label: Línea base, regla: "formulario:linea-base", nota: E2 · Me conozco }
+            - { label: Perfilamiento, regla: "documentos:perfilamiento", nota: E2 · informe individual }
+            - { label: Hoja de vida, regla: hv }
+            - { label: Atendidas en mitigación, regla: "union:mitigacion", nota: Soporte o sesión formativa }
+            - { label: Postuladas a vacantes del proyecto, regla: postulado_proyecto }
+            - { label: Vinculadas laboralmente, regla: colocado }
+        - { titulo: Expectativas de la ruta Recorrer, nota: Línea base, tipo: barras, pregunta: expectativas, hallazgo: true }
+        - { titulo: Calificación de la ruta hasta el momento, nota: Línea base · 1 a 5, tipo: barras, pregunta: calificacion_ruta }
+
+    - titulo: Calidad del dato y observaciones
+      subtitulo: Insumo para ajustar los formularios y para el informe
+      calidad: true
+      observaciones: "Escriba aquí lo recogido en territorio (p. ej. observaciones de la profesional psicosocial) antes de guardar el PDF. Si queda vacío, no se imprime."
 ```
 
 ## Resumen diario por correo

@@ -31,8 +31,10 @@ slug, su etiqueta en minúsculas con `_`). P-18: las claves anteriores eran etiq
 
 ```yaml
 grupos:
-  perfilamiento:                   # P-18/P-45: «Informe individual de perfilamiento» (Fase Documental)
+  perfilamiento:                   # P-18/P-45: «Informe individual de perfilamiento» (Fase Documental). P-53: ya no se muestra
     - doc_perfilamiento
+  plan_accion:                     # P-53: «Perfilamiento y plan de accion» (Fase Documental). Solo se carga a quien tiene
+    - plan_accion_perfilamiento    #       registro + línea base + perfilamiento: es lo que cuenta el dashboard
   mitigadas:                       # «Entrega de servicio de mitigación de barreras»
     - mitigacion_barreras_pnud
   seguimiento:                     # P5: al menos una sesión de seguimiento poscolocación (documentos de la persona)
@@ -65,7 +67,7 @@ metas:
   - { fase: 2, meta: Personas registradas,                         actual: "formularios[recorrer-pnud].personas" }
   - { fase: 2, meta: Mujeres registradas,                          actual: "formularios[recorrer-pnud].mujeres" }
   - { fase: 2, meta: Personas con línea base,                      actual: "formularios[linea-base].personas" }
-  - { fase: 2, meta: Planes de acción individuales,                actual: grupos.perfilamiento, ayuda: "El plan de acción se deriva del perfilamiento: cuenta quien tiene el informe individual de perfilamiento cargado (P-29)" }
+  - { fase: 2, meta: Planes de acción individuales,                actual: grupos.plan_accion, ayuda: "Plan de acción individual cargado en la Fase Documental. Solo lo tiene quien completó registro, línea base y perfilamiento (P-53)" }
   - { fase: 2, meta: Espacios de aprendizaje con la población,     actual: "formacion.eventos_por_tipo[espacio_aprendizaje].realizados", ayuda: Eventos de tipo «Espacio de aprendizaje» ya realizados }
   # P4 Mitigación de barreras
   # P-32: mitigada = soporte de entrega del servicio O asistió a una sesión formativa del Calendario (sin exigir matrícula)
@@ -159,13 +161,12 @@ Columnas de ✓ que no son etapas de la ruta. Se filtran con el ▾ de su column
 participantes:
   marcas:
     - { titulo: Hoja de vida, regla: hv, ayuda: Hoja de vida cargada en la plataforma }
-    - { titulo: Perfilamiento, regla: "documentos:perfilamiento", despues: Orientación, ayuda: Informe individual de perfilamiento cargado en la Fase Documental }
+    - { titulo: Plan de acción, regla: "documentos:plan_accion", despues: Orientación, ayuda: Plan de acción individual cargado en la Fase Documental (requiere registro, línea base y perfilamiento) }   # P-53
     - { titulo: Mitigación, regla: "union:mitigacion", despues: Aceleración, ayuda: Soporte de entrega del servicio de mitigación cargado o asistió a una sesión formativa del Calendario }   # P-32
   # P-27 (D-65): vistas rápidas de Participantes. «Orientación» = hizo la línea base o asistió a una sesión de orientación.
   vistas:
     - { titulo: Registros sin línea base,     con: [Registro],      sin: [Orientación] }
-    - { titulo: Línea base sin perfilamiento, con: [Orientación],   sin: [Perfilamiento] }
-    - { titulo: Perfilamiento sin línea base, con: [Perfilamiento], sin: [Orientación] }
+    - { titulo: Línea base sin plan de acción, con: [Orientación],  sin: [Plan de acción] }   # P-53
 ```
 
 ## Secciones del Dashboard
@@ -746,7 +747,7 @@ reporte:
           pasos:
             - { label: Registro inicial, regla: "formulario:recorrer-pnud", nota: E1 · Me registro }
             - { label: Línea base, regla: "formulario:linea-base", nota: E2 · Me conozco }
-            - { label: Perfilamiento, regla: "documentos:perfilamiento", nota: E2 · informe individual }
+            - { label: Plan de acción, regla: "documentos:plan_accion", nota: E2 · registro + línea base + perfilamiento }   # P-53
             - { label: Hoja de vida, regla: hv }
             - { label: Atendidas en mitigación, regla: "union:mitigacion", nota: Soporte o sesión formativa }
             - { label: Postuladas a vacantes del proyecto, regla: postulado_proyecto }

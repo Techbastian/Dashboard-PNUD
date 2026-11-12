@@ -55,6 +55,11 @@ export interface CifraPestana {
   /** Denominador (ruta) → «de N <deLabel>», % y cuántas faltan. */ de?: string; deLabel?: string; faltan?: string;
   /** Texto con rutas entre llaves: "En {vacantes.empresas_con_vacantes} empresas". */ nota?: string;
   /** personas → tarjeta de alerta «fuera del foco»; empresas → agrega «N fuera del foco» a la nota. */ foco?: 'personas' | 'empresas';
+  /**
+   * D-76: la tarjeta es un botón que filtra los GRÁFICOS de la pestaña a las personas que respondieron todos estos
+   * formularios (slugs; función pública v14, opción `con`). Las cifras siguen sobre el total. `filtraTexto` = cómo se
+   * nombra esa población en el aviso («con registro y línea base»).
+   */ filtra?: string[]; filtraTexto?: string;
 }
 export interface Grafico {
   /** linea (D-62): serie por día (`datos` = lista de {fecha, n}, p. ej. registros_por_dia), a todo el ancho. */
@@ -410,8 +415,12 @@ function validarPestanas(p: unknown, q: unknown, f: unknown, inf: unknown) {
     const cifras = (x.cifras ?? []).map((c, j) => {
       if (!c?.label || (!c.valor && c.foco !== 'personas')) err(`pestanas[${i}].cifras[${j}] necesita label y valor`);
       if (c.foco && !foco) err(`pestanas[${i}].cifras[${j}] usa foco, pero falta el bloque foco`);
+      if (c.filtra != null && (!Array.isArray(c.filtra) || !c.filtra.length || c.filtra.length > 10 || c.filtra.some(s => typeof s !== 'string' || !s.trim())))
+        err(`pestanas[${i}].cifras[${j}].filtra debe ser una lista de 1 a 10 slugs de formularios`);
+      if (c.filtra && c.foco) err(`pestanas[${i}].cifras[${j}]: filtra y foco no van juntos`);
       return c;
     });
+    if (cifras.filter(c => c.filtra).length > 1) err(`pestanas[${i}]: solo una cifra puede llevar filtra`);
     if (x.alertaFoco && !foco) err(`pestanas[${i}].alertaFoco necesita el bloque foco`);
     return { ...x, cifras, graficos } as Pestana;
   });

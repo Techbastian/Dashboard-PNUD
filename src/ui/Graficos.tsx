@@ -4,7 +4,7 @@
  * marca vs gris; valores siempre visibles; estados vacíos explícitos.
  */
 import type { ReactNode } from 'react';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Filter } from 'lucide-react';
 import { num } from '../lib/formato';
 import { SinDatos } from './Comunes';
 
@@ -35,12 +35,20 @@ function Barra({ v, max, color = 'bg-brand', label }: { v: number; max: number; 
   );
 }
 
-/** Cifra de pestaña: número grande, «de N» con barra si hay meta, nota debajo. `alerta` = tarjeta ámbar. */
-export function CifraCard({ label, valor, de, deTexto, barra, nota, alerta }: {
+/**
+ * Cifra de pestaña: número grande, «de N» con barra si hay meta, nota debajo. `alerta` = tarjeta ámbar.
+ * D-76: con `onFiltrar` la tarjeta es un botón que filtra los gráficos de la pestaña a esa población (`activo` = filtro puesto).
+ */
+export function CifraCard({ label, valor, de, deTexto, barra, nota, alerta, onFiltrar, activo }: {
   label: string; valor: number | null; de?: number | null; deTexto?: string; barra?: boolean; nota?: ReactNode; alerta?: boolean;
+  onFiltrar?: () => void; activo?: boolean;
 }) {
-  return (
-    <div className={`p-6 rounded-[2rem] border flex flex-col gap-2 min-w-0 ${alerta ? 'bg-amber-50/60 border-amber-200' : 'bg-white border-slate-100 shadow-[0_2px_10px_-3px_rgba(0,0,0,0.05)]'}`}>
+  const fondo = alerta ? 'bg-amber-50/60 border-amber-200'
+    : activo ? 'bg-brand/5 border-brand ring-2 ring-brand/30' : 'bg-white border-slate-100 shadow-[0_2px_10px_-3px_rgba(0,0,0,0.05)]';
+  const boton = onFiltrar ? 'w-full text-left cursor-pointer transition-colors hover:border-brand/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand' : '';
+  const clase = `p-6 rounded-[2rem] border flex flex-col gap-2 min-w-0 ${fondo} ${boton}`;
+  const contenido = (
+    <>
       <span className={`flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest ${alerta ? 'text-amber-700' : 'text-slate-400'}`}>
         {alerta && <AlertTriangle size={13} aria-hidden />}{label}
       </span>
@@ -52,8 +60,18 @@ export function CifraCard({ label, valor, de, deTexto, barra, nota, alerta }: {
       </div>
       {barra && de != null && valor != null && <Barra v={valor} max={de} label={label} />}
       {(nota || valor == null) && <p className={`text-[11px] font-bold leading-snug ${alerta ? 'text-amber-700/80' : 'text-slate-400'}`}>{valor == null ? 'Sin fuente aún' : nota}</p>}
-    </div>
+      {onFiltrar && (
+        <span className={`mt-1 inline-flex items-center gap-1.5 self-start rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider no-print ${
+          activo ? 'bg-brand text-white' : 'bg-slate-100 text-slate-500'}`}>
+          <Filter size={11} aria-hidden />{activo ? 'Filtro activo · clic para quitar' : 'Ver solo esta población'}
+        </span>
+      )}
+    </>
   );
+  return onFiltrar ? (
+    <button type="button" onClick={onFiltrar} aria-pressed={Boolean(activo)} className={clase}
+      title={activo ? 'Volver a ver todas las personas' : 'Ver la caracterización solo de esta población'}>{contenido}</button>
+  ) : <div className={clase}>{contenido}</div>;
 }
 
 type Estado = 'sin-fuente' | 'sin-iniciar' | 'en-curso' | 'cumplida';

@@ -3,7 +3,8 @@
  * hasta 6 gráficos; el detalle se descarga en Informes. `?imprimir=1` pinta todas las pestañas, una por página,
  * y abre el diálogo de impresión (PDF ejecutivo del módulo Informes).
  */
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Filter, Loader2, X } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { config } from '../lib/config';
 import type { CifraPestana, Grafico, Pestana } from '../lib/config';
@@ -12,7 +13,7 @@ import { num } from '../lib/formato';
 import {
   destaca, fueraDeFoco, pct, personasFueraDeFoco, pregunta, respuesta, type Respuesta,
 } from '../lib/respuestas';
-import type { PublicStats } from '../lib/usePublicStats';
+import { conAplicado, usePublicStats, type PublicStats } from '../lib/usePublicStats';
 import { DonutChart, ListaBarras, SeriePorDia, SinDatos, toChart, type SeriePunto } from '../ui/Comunes';
 import {
   AlertaFoco, ApiladaFilas, BarrasPareadas, CifraCard, EmbudoBloques, MetaFila, TarjetaBloque, type FilaApilada,
@@ -56,7 +57,7 @@ function interpolar(data: PublicStats, t?: string) {
 }
 const listaTexto = (xs: Item[]) => xs.map(x => `${x.categoria} ${num(x.n)}`).join(' · ');
 
-function Cifra({ c, data }: { c: CifraPestana; data: PublicStats }) {
+function Cifra({ c, data, onFiltrar, activo }: { c: CifraPestana; data: PublicStats; onFiltrar?: () => void; activo?: boolean }) {
   const foco = config.foco!;
   if (c.foco === 'personas') {
     const f = personasFueraDeFoco(data);
@@ -72,7 +73,8 @@ function Cifra({ c, data }: { c: CifraPestana; data: PublicStats }) {
     const n = fuera.reduce((s, x) => s + x.n, 0);
     nota = n ? `${num(n)} fuera de ${foco.nombre} (${fuera.map(x => x.categoria).join(', ')})` : `Todas en ${foco.nombre}`;
   }
-  return <CifraCard label={c.label} valor={v} de={de} deTexto={c.de ? c.deLabel : undefined} barra={Boolean(c.meta)} nota={nota} />;
+  return <CifraCard label={c.label} valor={v} de={de} deTexto={c.de ? c.deLabel : undefined} barra={Boolean(c.meta)} nota={nota}
+    onFiltrar={onFiltrar} activo={activo} />;
 }
 
 const etiqueta = (id: string) => pregunta(id)?.titulo ?? id;
@@ -172,14 +174,46 @@ function Metas({ data }: { data: PublicStats }) {
   );
 }
 
-function ContenidoPestana({ p, data }: { p: Pestana; data: PublicStats }) {
+/** Aviso sobre los gráficos con el filtro de población puesto (D-76). */
+function AvisoFiltro({ c, sub, cargando, error, onQuitar }: {
+  c: CifraPestana; sub: PublicStats | null; cargando: boolean; error: string | null; onQuitar: () => void;
+}) {
+  const n = sub ? valorN(sub, 'postulaciones.personas') : null;
+  const quien = c.filtraTexto ?? c.label.toLowerCase();
+  let texto: ReactNode;
+  if (error) texto = <span className="text-red-600">No se pudo cargar esa población ({error}). Los gráficos muestran el total.</span>;
+  else if (sub && !conAplicado(sub, c.filtra!)) texto = <span className="text-amber-700">La base todavía no tiene la función que filtra (v14). Los gráficos muestran el total.</span>;
+  else if (!sub) texto = <span className="inline-flex items-center gap-1.5"><Loader2 size={13} className="animate-spin" aria-hidden /> Cargando solo las personas {quien}…</span>;
+  else texto = <>Gráficos de las <strong className="text-slate-800">{n == null ? '—' : num(n)} personas {quien}</strong>. Las cifras de arriba siguen sobre el total.</>;
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-brand/30 bg-brand/5 px-5 py-3 text-[12px] font-bold text-slate-600" role="status">
+      <span className="inline-flex items-center gap-2 min-w-0"><Filter size={14} className="text-brand shrink-0" aria-hidden />{texto}
+        {cargando && sub && <Loader2 size={12} className="animate-spin text-slate-400" aria-label="Actualizando" />}</span>
+      <button type="button" onClick={onQuitar} className="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1 text-[11px] font-black text-slate-600 border border-slate-200 hover:text-slate-900 no-print">
+        <X size={12} aria-hidden /> Ver todas
+      </button>
+    </div>
+  );
+}
+
+function ContenidoPestana({ p, data, imprimir }: { p: Pestana; data: PublicStats; imprimir?: boolean }) {
+  // D-76: la cifra con `filtra` es un botón; con el filtro puesto, los gráficos salen de una segunda consulta (`con`).
+  const cFiltro = imprimir ? undefined : p.cifras.find(c => c.filtra?.length);
+  const [filtrado, setFiltrado] = useState(false);
+  const activo = Boolean(cFiltro && filtrado);
+  const sub = usePublicStats(activo ? cFiltro!.filtra! : null);
+  const usable = activo && sub.data && conAplicado(sub.data, cFiltro!.filtra!) ? sub.data : null;
+  const dataG = usable ?? data;
   return (
     <div className="space-y-6">
       {p.alertaFoco && <ErrorBoundary nombre="alerta"><AvisoFoco data={data} /></ErrorBoundary>}
       {p.cifras.length > 0 && (
         <ErrorBoundary nombre="cifras">
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
-            {p.cifras.map(c => <Cifra key={c.label} c={c} data={data} />)}
+            {p.cifras.map(c => (
+              <Cifra key={c.label} c={c} data={data} activo={c === cFiltro && activo}
+                onFiltrar={c === cFiltro ? () => setFiltrado(x => !x) : undefined} />
+            ))}
           </div>
         </ErrorBoundary>
       )}
@@ -192,10 +226,11 @@ function ContenidoPestana({ p, data }: { p: Pestana; data: PublicStats }) {
           </TarjetaBloque>
         </ErrorBoundary>
       )}
+      {activo && <AvisoFiltro c={cFiltro!} sub={sub.data} cargando={sub.cargando} error={sub.error} onQuitar={() => setFiltrado(false)} />}
       {p.graficos.length > 0 && (
-        <div className={`grid grid-cols-1 md:grid-cols-2 gap-6 ${p.graficos.length % 3 === 0 ? 'xl:grid-cols-3' : ''}`}>
+        <div className={`grid grid-cols-1 md:grid-cols-2 gap-6 transition-opacity ${activo && !usable && !sub.error ? 'opacity-50' : ''} ${p.graficos.length % 3 === 0 ? 'xl:grid-cols-3' : ''}`}>
           {p.graficos.map(g => {
-            const tarjeta = <ErrorBoundary key={g.titulo} nombre={g.titulo}><GraficoCard g={g} data={data} /></ErrorBoundary>;
+            const tarjeta = <ErrorBoundary key={g.titulo} nombre={g.titulo}><GraficoCard g={g} data={dataG} /></ErrorBoundary>;
             // D-62: la serie por día va a todo el ancho.
             return g.tipo === 'linea' ? <div key={g.titulo} className="col-span-full">{tarjeta}</div> : tarjeta;
           })}
@@ -223,7 +258,7 @@ export default function DashboardPestanas({ data }: { data: PublicStats }) {
         {config.pestanas.map((p, i) => (
           <section key={p.id} style={i > 0 ? { breakBefore: 'page' } : undefined} className="space-y-4">
             <h3 className="text-lg font-black text-slate-800">{p.titulo}</h3>
-            <ContenidoPestana p={p} data={data} />
+            <ContenidoPestana p={p} data={data} imprimir />
           </section>
         ))}
       </div>
@@ -242,7 +277,7 @@ export default function DashboardPestanas({ data }: { data: PublicStats }) {
           </button>
         ))}
       </div>
-      <div role="tabpanel" aria-label={activa.titulo}><ContenidoPestana p={activa} data={data} /></div>
+      <div role="tabpanel" aria-label={activa.titulo}><ContenidoPestana key={activa.id} p={activa} data={data} /></div>
     </div>
   );
 }

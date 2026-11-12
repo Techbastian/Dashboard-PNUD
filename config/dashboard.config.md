@@ -444,7 +444,8 @@ pestanas:
     cifras:
       - { label: Personas registradas, valor: "formularios[recorrer-pnud].personas", meta: Personas registradas }
       - { label: Mujeres registradas,  valor: "formularios[recorrer-pnud].mujeres",  meta: Mujeres registradas }
-      - { label: Con línea base,       valor: "formularios[linea-base].personas", de: "formularios[recorrer-pnud].personas", deLabel: registradas, faltan: aún sin línea base }
+      # P-57 (D-76): la tarjeta es un botón; con él, los gráficos muestran solo a quienes tienen registro y línea base
+      - { label: Con línea base,       valor: "formularios[linea-base].personas", de: "formularios[recorrer-pnud].personas", deLabel: registradas, faltan: aún sin línea base, filtra: [recorrer-pnud, linea-base], filtraTexto: con registro y línea base }
     graficos:
       # P-22: registros por día, a todo el ancho (D-62)
       - { titulo: Registros por día, nota: "Personas que se registraron cada día · filtro por mes", tipo: linea, datos: registros_por_dia }

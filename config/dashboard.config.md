@@ -61,7 +61,9 @@ Una fase por producto del contrato. El **objetivo** sale de `cohort_goals` (por 
 ```yaml
 metas:
   # P1 Gestión empresarial
-  - { fase: 1, meta: Empresas sensibilizadas en empleo inclusivo,  actual: empresas.con_diagnostico, ayuda: "Sensibilizada = con el diagnóstico de empleo inclusivo registrado en Empresas (P-26)" }
+  # P-61 TEMPORAL: cuenta las empresas vinculadas a PNUD mientras llegan los diagnósticos pendientes.
+  # Al revertir, volver a: actual: empresas.con_diagnostico, ayuda: "Sensibilizada = con el diagnóstico de empleo inclusivo registrado en Empresas (P-26)"
+  - { fase: 1, meta: Empresas sensibilizadas en empleo inclusivo,  actual: empresas.aliadas, ayuda: "Empresas registradas y vinculadas al proyecto (P-61, temporal)" }
   - { fase: 1, meta: Espacios de aprendizaje con empresas,         actual: "formacion.eventos_por_tipo[sensibilizacion].realizados", ayuda: Eventos de sensibilización ya realizados }
   # P2 Mapeo y focalización
   - { fase: 2, meta: Personas registradas,                         actual: "formularios[recorrer-pnud].personas" }
@@ -88,7 +90,7 @@ fases:
 
 ```yaml
 cifras:
-  - { label: Empresas sensibilizadas,  valor: empresas.con_diagnostico, ayuda: Con diagnóstico de empleo inclusivo }
+  - { label: Empresas sensibilizadas,  valor: empresas.aliadas, ayuda: Empresas registradas en el proyecto }   # P-61 TEMPORAL; al revertir: valor: empresas.con_diagnostico, ayuda: Con diagnóstico de empleo inclusivo
   - { label: Personas registradas,     valor: "formularios[recorrer-pnud].personas" }
   - { label: Mujeres registradas,      valor: "formularios[recorrer-pnud].mujeres" }
   - { label: Postuladas a vacantes,    valor: empleabilidad.personas_postuladas_aliadas, ayuda: P3 · intermediación atribuible (A-16) }
@@ -188,6 +190,9 @@ público solo muestra cuántas empresas lo tienen, nunca el enlace.
 **Una empresa con diagnóstico es una empresa sensibilizada** (P-26): es una sola meta («Empresas sensibilizadas en
 empleo inclusivo»), contada con `empresas.con_diagnostico`. Los eventos de sensibilización cuentan como espacios de
 aprendizaje con empresas, no hacen sensibilizada a la empresa.
+**Temporal (P-61, 12-nov):** mientras se consiguen los diagnósticos pendientes, la meta y las tarjetas de «Empresas
+sensibilizadas» cuentan `empresas.aliadas` (empresas vinculadas a PNUD). El informe conserva la cifra real como
+«Empresas con diagnóstico cargado». Para revertir, seguir los comentarios `P-61 TEMPORAL` de este archivo.
 
 ```yaml
 empresas:
@@ -472,7 +477,7 @@ pestanas:
     titulo: Empresas
     cifras:
       - { label: Empresas aliadas,        valor: empresas.aliadas }
-      - { label: Empresas sensibilizadas, valor: empresas.con_diagnostico, meta: Empresas sensibilizadas en empleo inclusivo }
+      - { label: Empresas sensibilizadas, valor: empresas.aliadas, meta: Empresas sensibilizadas en empleo inclusivo }   # P-61 TEMPORAL; al revertir: valor: empresas.con_diagnostico
       - { label: Vacantes del proyecto,   valor: vacantes.total, nota: "En {vacantes.empresas_con_vacantes} empresas" }
       - { label: Personas vinculadas,     valor: empleabilidad.colocados, meta: Personas vinculadas laboralmente }
     graficos:
@@ -506,7 +511,7 @@ informe:
       descripcion: "Indicadores del P1, tamaño, sector, municipio; nivel educativo, experiencia, salario, contrato y modalidad de las vacantes; intermediación"
       cifras:
         - { label: Empresas aliadas, valor: empresas.aliadas }
-        - { label: Empresas sensibilizadas, valor: empresas.con_diagnostico }
+        - { label: Empresas con diagnóstico cargado, valor: empresas.con_diagnostico }   # P-61: mientras dure el temporal, el informe muestra el dato real; al revertir: label: Empresas sensibilizadas
         - { label: Espacios de aprendizaje con empresas realizados, valor: "formacion.eventos_por_tipo[sensibilizacion].realizados" }
         - { label: Vacantes (puestos), valor: vacantes.total }
         - { label: Cargos, valor: vacantes.cargos }

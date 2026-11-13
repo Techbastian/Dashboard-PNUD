@@ -4,6 +4,7 @@
  * Desde 2.6 (portado de FQSD) registra postulaciones externas y colocaciones, y marca colocaciones terminadas.
  * Escribe en las tablas de la plataforma: una colocación con recordatorios automáticos hace que la plataforma
  * envíe correos de seguimiento a la persona. Lo excluido de las métricas (A-22) se ve marcado «No cuenta».
+ * 2.22.1 (D-77): la intermediación solo muestra y cuenta postulaciones atribuibles al proyecto (A-16).
  */
 import { useState } from 'react';
 import { useCohorte, type Persona } from '../lib/datos';
@@ -25,8 +26,13 @@ export default function ColocacionView() {
   const etapas = etapasConRegla();
   const filas = new Map(filasPersonas(datos).map(f => [f.p.id, f]));
   const persona = new Map(datos.personas.map(p => [p.id, p]));
-  const porPersona = new Map<string, typeof datos.postulaciones>();
-  for (const x of datos.postulaciones) porPersona.set(x.personaId, [...(porPersona.get(x.personaId) ?? []), x]);
+  // D-77: solo la intermediación atribuible al proyecto (A-16): vacantes de empresas vinculadas a la cohorte o creadas
+  // para ella, y externas del equipo. Las postulaciones a vacantes de otros proyectos no se ven ni se cuentan aquí
+  // (igual que la cifra pública `personas_postuladas_aliadas` y la etapa Intermediación). La ficha las sigue mostrando.
+  const posts = datos.postulaciones.filter(p => p.atribuible);
+  const porPersona = new Map<string, typeof posts>();
+  for (const x of posts) porPersona.set(x.personaId, [...(porPersona.get(x.personaId) ?? []), x]);
+  const soloOtras = new Set(datos.postulaciones.filter(p => !p.atribuible && !porPersona.has(p.personaId)).map(p => p.personaId)).size;
   const coincide = (id: string) => { const p = persona.get(id); return !q.trim() || [p?.nombre, p?.documento, p?.correo].some(v => norm(v).includes(norm(q))); };
   const intermediados = [...porPersona.entries()].filter(([id]) => coincide(id));
   const colocadas = datos.colocaciones.filter(c => coincide(c.personaId));
@@ -35,8 +41,9 @@ export default function ColocacionView() {
     <div className={`space-y-6 ${cargando ? 'opacity-80' : ''}`}>
       <BarraDatos />
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <KPICard label="Personas postuladas" value={num(new Set(datos.postulaciones.filter(p => !p.excluida).map(p => p.personaId)).size)} color="text-brand" />
-        <KPICard label="Postulaciones" value={num(datos.postulaciones.length)} color="text-qsd-purple" subtext={`${datos.postulaciones.filter(p => p.origen === 'externa').length} externas`} />
+        <KPICard label="Personas postuladas" value={num(new Set(posts.filter(p => !p.excluida).map(p => p.personaId)).size)} color="text-brand"
+          subtext={soloOtras ? `Sin contar ${num(soloOtras)} con postulaciones solo a vacantes de otros proyectos` : 'A vacantes del proyecto o externas'} />
+        <KPICard label="Postulaciones" value={num(posts.length)} color="text-qsd-purple" subtext={`${posts.filter(p => p.origen === 'externa').length} externas`} />
         <KPICard label="Personas colocadas" value={num(new Set(datos.colocaciones.filter(c => c.activa && !c.excluida).map(c => c.personaId)).size)} color="text-qsd-orange" />
         <KPICard label="Colocaciones activas" value={num(datos.colocaciones.filter(c => c.activa && !c.excluida).length)} color="text-emerald-600" />
       </div>

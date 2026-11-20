@@ -157,7 +157,8 @@ export function TerminarColocacion({ c }: { c: Colocacion }) {
   const [abierto, setAbierto] = useState(false);
   const [motivo, setMotivo] = useState('');
   const { ocupado, error, correr } = useEscritura();
-  if (!c.activa) return null;
+  // D-79: una contratación de participant_hirings se termina en la plataforma (módulo de intermediación), no aquí.
+  if (!c.activa || c.origen === 'contratacion') return null;
   return abierto ? (
     <span className="flex flex-wrap items-center gap-2 mt-1">
       <input aria-label="Motivo de terminación" value={motivo} onChange={e => setMotivo(e.target.value)} placeholder="Motivo (renuncia, fin de contrato…)" className="bg-slate-50 rounded-lg px-2 py-1 text-xs flex-1 min-w-[10rem] outline-none" />

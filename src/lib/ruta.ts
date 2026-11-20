@@ -11,22 +11,37 @@ export type Valor = { estado: 'ok'; n: number } | { estado: 'pendiente' } | { es
 const CLAVES = ['slug', 'tipo', 'categoria', 'clave', 'estado', 'nombre'];
 const CAMPOS_NUM = ['n', 'personas', 'total'];
 
-export function resolver(stats: unknown, ruta: string): Valor {
-  if (ruta.trim() === 'pendiente') return { estado: 'pendiente' };
+const FALTA = Symbol('falta');
+/** Lo que hay en la ruta (con `[clave]` dentro de listas); FALTA = la lista existe pero no trae ese elemento. */
+function recorrer(stats: unknown, ruta: string): unknown {
   let actual: unknown = stats;
   const partes = ruta.match(/[^.[\]]+|\[[^\]]*\]/g) ?? [];
   for (const p of partes) {
-    if (actual == null) return { estado: 'sin-dato' };
+    if (actual == null) return undefined;
     if (p.startsWith('[')) {
       const k = p.slice(1, -1);
-      if (!Array.isArray(actual)) return { estado: 'sin-dato' };
+      if (!Array.isArray(actual)) return undefined;
       const item = actual.find(x => x && typeof x === 'object' && CLAVES.some(c => String((x as Record<string, unknown>)[c]) === k));
-      if (!item) return { estado: 'ok', n: 0 };
+      if (!item) return FALTA;
       actual = item;
     } else {
       actual = (actual as Record<string, unknown>)[p];
     }
   }
+  return actual;
+}
+
+/** Valor crudo en la ruta (sirve para listas dentro de listas: "formularios[linea-base].por_genero"). */
+export function valorEn(stats: unknown, ruta: string): unknown {
+  const v = recorrer(stats, ruta);
+  return v === FALTA ? undefined : v;
+}
+
+export function resolver(stats: unknown, ruta: string): Valor {
+  if (ruta.trim() === 'pendiente') return { estado: 'pendiente' };
+  const actual = recorrer(stats, ruta);
+  if (actual === FALTA) return { estado: 'ok', n: 0 };
+  if (actual == null) return { estado: 'sin-dato' };
   if (typeof actual === 'number') return { estado: 'ok', n: actual };
   if (actual && typeof actual === 'object' && !Array.isArray(actual)) {
     for (const c of CAMPOS_NUM) {

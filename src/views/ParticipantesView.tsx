@@ -6,6 +6,7 @@
  * D-51..D-53: estado activo/inactivo (deserción interna sobre todas las personas), llamadas e historial en la ficha.
  * D-65: filtro tipo Excel en cada columna (se combinan con «Y»; varias casillas de una columna, con «O»), vistas
  * rápidas de la config, filtros en la dirección de la página (sin la búsqueda: es PII) y descarga en Excel de lo filtrado.
+ * D-80: columna Género (con filtro), Mujeres · Hombres en cada cifra y el bloque «Por género», todo sobre lo filtrado.
  */
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
@@ -19,6 +20,8 @@ import { FormPostulacionExterna, BorrarPostulacion, FormColocacion, TerminarColo
 import { BarraDatos, Buscador, Cargando, ErrorDatos, PanelLateral, BloqueFicha, MarcaEtapa, Etiqueta, Vacio } from '../ui/Privado';
 import { BotonFiltro, MenuFiltro, type OpcionFiltro, type Rango } from '../ui/FiltroExcel';
 import { KPICard } from '../ui/Comunes';
+import { BarrasGenero, LineaGenero } from '../ui/Graficos';
+import { contarGenero, sexoDe } from '../lib/genero';
 import { BloqueEstado, BloqueLlamadas, BloqueHistorial, motivoLabel } from '../ui/Seguimiento';
 
 /** `r` = etapas de la ruta; `m` = marcas de la config (D-44); `dia` = día de registro en Bogotá (YYYY-MM-DD). */
@@ -45,7 +48,7 @@ export function columnasPersonas(d: DatosCohorte): Columna<Fila>[] {
     { titulo: 'Correo', valor: f => f.p.correo }, { titulo: 'Celular', valor: f => f.p.celular }, { titulo: 'Ciudad', valor: f => f.p.ciudad },
     { titulo: 'Género', valor: f => f.p.genero }, { titulo: 'Estado postulación', valor: f => humano(f.p.estado) }, { titulo: 'Registro', valor: f => fecha(f.p.registradaEl) },
     ...etapas.map((e, i) => ({ titulo: nombreEtapa(e), valor: (f: Fila) => sn(f.r[i]) })),
-    { titulo: 'Etapa actual', valor: f => (f.actual == null ? '' : etapas[f.actual].etapa) },
+    { titulo: 'Etapa actual', valor: f => (f.actual == null ? '' : nombreEtapa(etapas[f.actual])) },
     { titulo: 'Programa', valor: f => (f.baja ? 'Inactiva' : 'Activa') },
     { titulo: 'Motivo inactivación', valor: f => (f.baja ? motivoLabel(f.baja.motivo) : '') },
     { titulo: 'Inactiva desde', valor: f => (f.baja ? fecha(f.baja.fechaEfectiva) : '') },
@@ -55,6 +58,7 @@ export function columnasPersonas(d: DatosCohorte): Columna<Fila>[] {
   ];
 }
 
+const gen = (f: Fila) => f.p.genero;
 const slug = (t: string) => norm(t).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 const MARCA: Record<string, string> = { si: '✓ Sí', no: '— No', sf: 'Sin fuente' };
 const sn = (v: Resultado) => (v === null ? 'sf' : v ? 'si' : 'no');
@@ -74,10 +78,10 @@ interface Col {
 function construirColumnas(): Col[] {
   const etapas = etapasConRegla();
   const marcas = config.participantes.marcas;
-  const usadas = new Set(['orden', 'persona', 'estado', 'programa', 'fecha', 'actual']);
+  const usadas = new Set(['orden', 'persona', 'genero', 'estado', 'programa', 'fecha', 'actual']);
   const clave = (t: string) => { let k = slug(t) || 'col'; while (usadas.has(k)) k = `c-${k}`; usadas.add(k); return k; };
   const AZ: [string, string] = ['A → Z', 'Z → A'];
-  const etapaLabel = new Map<string, string>([['ninguna', 'Sin etapa'], ...etapas.map(e => [slug(e.etapa), e.etapa] as [string, string])]);
+  const etapaLabel = new Map<string, string>([['ninguna', 'Sin etapa'], ...etapas.map(e => [slug(e.etapa), nombreEtapa(e)] as [string, string])]);
   const ruta = (titulo: string, res: (f: Fila) => Resultado, extra: Partial<Col>): Col => ({
     key: clave(titulo), titulo, nombre: titulo, tipo: 'lista', res,
     valor: f => sn(res(f)), label: v => MARCA[v] ?? v, orden: f => (res(f) === null ? -1 : res(f) ? 1 : 0), textosOrden: ['— primero', '✓ primero'], ...extra,
@@ -87,6 +91,8 @@ function construirColumnas(): Col[] {
   // D-60: las marcas sin `despues` van antes de las etapas; las demás, justo después de su etapa.
   return [
     { key: 'persona', titulo: 'Persona', tipo: 'orden', valor: () => '', label: v => v, orden: f => norm(f.p.nombre), textosOrden: AZ },
+    // D-80: mismo criterio de género que la función pública (Mujer, Hombre, No binario, Prefiere no decir, Otro, Sin dato).
+    { key: 'genero', titulo: 'Género', ayuda: 'Campo «Género» del registro', tipo: 'lista', valor: f => sexoDe(f.p.genero), label: v => v, orden: f => ['Mujer', 'Hombre', 'No binario', 'Prefiere no decir', 'Otro', 'Sin dato'].indexOf(sexoDe(f.p.genero)), textosOrden: ['Mujer → Sin dato', 'Sin dato → Mujer'] },
     { key: 'estado', titulo: 'Estado', ayuda: 'Estado de la postulación en la plataforma', tipo: 'lista', valor: f => f.p.estado ?? 'sin_estado', label: humano, orden: f => humano(f.p.estado ?? 'sin_estado'), textosOrden: AZ },
     { key: 'programa', titulo: 'Programa', ayuda: 'Activa o inactiva en el programa (deserción interna)', tipo: 'lista', valor: f => (f.baja ? 'inactiva' : 'activa'), label: v => (v === 'activa' ? 'Activa' : 'Inactiva'), orden: f => (f.baja ? 1 : 0), textosOrden: ['Activas primero', 'Inactivas primero'] },
     { key: 'fecha', titulo: 'Fecha de registro', tipo: 'fecha', valor: f => f.dia ?? '', label: v => fecha(v), orden: f => f.dia ?? '', textosOrden: ['Antigua → reciente', 'Reciente → antigua'] },
@@ -212,13 +218,30 @@ export default function ParticipantesView() {
       <BarraDatos />
 
       <div className={`grid grid-cols-2 md:grid-cols-3 ${COLS[Math.min(cifras.length + 2, 8)] ?? 'xl:grid-cols-5'} gap-4`}>
-        <KPICard label="Personas" value={num(visibles.length)} color="text-slate-800" />
-        <KPICard label={`Inactivas · ${desercion.toLocaleString('es-CO')} %`} title="Sobre todas las personas de la cohorte, sin filtros" value={num(inactivas)} color="text-red-600" />
+        <KPICard label="Personas" value={num(visibles.length)} color="text-slate-800" pie={<LineaGenero d={contarGenero(visibles, gen)} />} />
+        <KPICard label={`Inactivas · ${desercion.toLocaleString('es-CO')} %`} title="Sobre todas las personas de la cohorte, sin filtros" value={num(inactivas)} color="text-red-600"
+          pie={<LineaGenero d={contarGenero(filas.filter(f => f.baja), gen)} />} />
         {cifras.map(c => {
           const sinFuente = filas.length > 0 && filas.every(f => c.res!(f) === null);
-          return <KPICard key={c.key} label={c.titulo} title={c.ayuda} value={sinFuente ? null : num(visibles.filter(f => c.res!(f) === true).length)} color="text-brand" />;
+          const con = visibles.filter(f => c.res!(f) === true);
+          return <KPICard key={c.key} label={c.titulo} title={c.ayuda} value={sinFuente ? null : num(con.length)} color="text-brand" pie={<LineaGenero d={contarGenero(con, gen)} />} />;
         })}
       </div>
+
+      <details className="glass-card p-5 group" open>
+        <summary className="cursor-pointer list-none flex flex-wrap items-baseline justify-between gap-2">
+          <span className="text-sm font-black text-slate-800">Por género</span>
+          <span className="text-[11px] font-bold text-slate-400">
+            Mujeres y hombres en cada cifra · sobre las {num(visibles.length)} personas que dejan los filtros · % = de las mujeres / de los hombres de esas personas
+          </span>
+        </summary>
+        <div className="mt-4 max-w-3xl">
+          <BarrasGenero pasos={[
+            { label: 'Personas', d: contarGenero(visibles, gen) },
+            ...cifras.map(c => ({ label: nombreCol(c), ayuda: c.ayuda, d: contarGenero(visibles.filter(f => c.res!(f) === true), gen), base: contarGenero(visibles, gen) })),
+          ]} />
+        </div>
+      </details>
 
       <div className="glass-card p-4 space-y-4">
         <div className="flex flex-wrap items-center gap-3">
@@ -291,6 +314,7 @@ export default function ParticipantesView() {
                     <p className="text-sm font-bold text-slate-800 whitespace-nowrap">{f.p.nombre}</p>
                     <p className="text-[11px] text-slate-400 whitespace-nowrap">{f.p.documento ?? '—'} · {f.p.correo ?? 'sin correo'}</p>
                   </td>
+                  <td className="px-3 py-3 text-xs font-bold text-slate-600 whitespace-nowrap">{sexoDe(f.p.genero)}</td>
                   <td className="px-3 py-3"><Etiqueta>{humano(f.p.estado)}</Etiqueta></td>
                   <td className="px-3 py-3" title={f.baja ? `${motivoLabel(f.baja.motivo)} · ${fecha(f.baja.fechaEfectiva)}` : undefined}>
                     {f.baja ? <Etiqueta tono="red">Inactiva</Etiqueta> : <Etiqueta tono="emerald">Activa</Etiqueta>}

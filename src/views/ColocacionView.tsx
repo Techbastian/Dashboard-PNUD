@@ -5,11 +5,12 @@
  * Escribe en las tablas de la plataforma: una colocación con recordatorios automáticos hace que la plataforma
  * envíe correos de seguimiento a la persona. Lo excluido de las métricas (A-22) se ve marcado «No cuenta».
  * 2.22.1 (D-77): la intermediación solo muestra y cuenta postulaciones atribuibles al proyecto (A-16).
+ * 2.23.0 (D-79): las colocaciones incluyen las contrataciones de participant_hirings sin placement (solo lectura, «Plataforma»).
  */
 import { useState } from 'react';
 import { useCohorte, type Persona } from '../lib/datos';
 import { BorrarPostulacion, ElegirPersona, FormColocacion, FormPostulacionExterna, NoCuenta, TerminarColocacion } from '../ui/Gestion';
-import { etapasConRegla } from '../lib/etapas';
+import { etapasConRegla, nombreEtapa } from '../lib/etapas';
 import { fecha, humano, norm, num } from '../lib/formato';
 import { BarraDatos, Buscador, Cargando, ErrorDatos, Etiqueta, PanelLateral, Pestanas, Vacio } from '../ui/Privado';
 import { KPICard } from '../ui/Comunes';
@@ -43,7 +44,7 @@ export default function ColocacionView() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <KPICard label="Personas postuladas" value={num(new Set(posts.filter(p => !p.excluida).map(p => p.personaId)).size)} color="text-brand"
           subtext={soloOtras ? `Sin contar ${num(soloOtras)} con postulaciones solo a vacantes de otros proyectos` : 'A vacantes del proyecto o externas'} />
-        <KPICard label="Postulaciones" value={num(posts.length)} color="text-qsd-purple" subtext={`${posts.filter(p => p.origen === 'externa').length} externas`} />
+        <KPICard label="Total de postulaciones" value={num(posts.length)} color="text-qsd-purple" subtext={`${posts.filter(p => p.origen === 'externa').length} externas`} />
         <KPICard label="Personas colocadas" value={num(new Set(datos.colocaciones.filter(c => c.activa && !c.excluida).map(c => c.personaId)).size)} color="text-qsd-orange" />
         <KPICard label="Colocaciones activas" value={num(datos.colocaciones.filter(c => c.activa && !c.excluida).length)} color="text-emerald-600" />
       </div>
@@ -79,7 +80,7 @@ export default function ColocacionView() {
                     return (
                       <tr key={id} className="align-top">
                         <td className="px-6 py-3"><p className="text-sm font-bold text-slate-800">{p?.nombre ?? '—'}</p><p className="text-[11px] text-slate-400">{p?.documento ?? ''}</p></td>
-                        <td className="px-6 py-3">{f?.actual != null ? <Etiqueta tono="brand">{etapas[f.actual].etapa}</Etiqueta> : '—'}</td>
+                        <td className="px-6 py-3">{f?.actual != null ? <Etiqueta tono="brand">{nombreEtapa(etapas[f.actual])}</Etiqueta> : '—'}</td>
                         <td className="px-6 py-3"><ul className="space-y-1">{ps.map(x => (
                           <li key={x.id} className="text-xs flex items-center gap-2"><span><span className="font-bold text-slate-700">{x.vacante}</span><span className="text-slate-400"> · {x.empresa ?? '—'} · {x.origen === 'externa' ? 'externa' : humano(x.estado)}</span> <NoCuenta motivo={x.excluida} /></span><BorrarPostulacion p={x} /></li>
                         ))}</ul></td>
@@ -104,7 +105,7 @@ export default function ColocacionView() {
                       <td className="px-6 py-3 text-sm text-slate-600">{c.cargo}</td>
                       <td className="px-6 py-3 text-xs font-bold text-slate-500 whitespace-nowrap">{fecha(c.inicio)}</td>
                       <td className="px-6 py-3 text-xs text-slate-500">{c.modalidad ?? '—'}</td>
-                      <td className="px-6 py-3">{c.activa ? <Etiqueta tono="emerald">Activa</Etiqueta> : <Etiqueta>Terminada</Etiqueta>} <NoCuenta motivo={c.excluida} /><div><TerminarColocacion c={c} /></div></td>
+                      <td className="px-6 py-3">{c.activa ? <Etiqueta tono="emerald">Activa</Etiqueta> : <Etiqueta>Terminada</Etiqueta>}{c.origen === 'contratacion' && <> <span title="Registrada en el módulo de intermediación de la plataforma (participant_hirings); se edita allá"><Etiqueta>Plataforma</Etiqueta></span></>} <NoCuenta motivo={c.excluida} /><div><TerminarColocacion c={c} /></div></td>
                     </tr>
                   ); })}
                 </tbody>

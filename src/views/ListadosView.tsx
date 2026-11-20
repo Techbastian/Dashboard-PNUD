@@ -6,7 +6,7 @@
 import { useMemo, useState } from 'react';
 import { Download, Loader2, Users, Building2 } from 'lucide-react';
 import { useCohorte } from '../lib/datos';
-import { etapasConRegla } from '../lib/etapas';
+import { etapasConRegla, nombreEtapa } from '../lib/etapas';
 import { humano, num } from '../lib/formato';
 import { descargarXlsx, hoja } from '../lib/excel';
 import { config } from '../lib/config';
@@ -88,7 +88,7 @@ export default function ListadosView() {
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {etapas.map((e, i) => (
                 <div key={e.etapa} className="flex items-center justify-between gap-3 bg-slate-50 rounded-xl px-4 py-2.5">
-                  <span className="text-xs font-bold text-slate-700">{e.etapa}</span>
+                  <span className="text-xs font-bold text-slate-700">{nombreEtapa(e)}</span>
                   <Pestanas activa={conds[i]} onCambio={v => setConds(c => c.map((x, j) => (j === i ? v : x)))}
                     opciones={[{ key: 'cualquiera', label: 'Todas' }, { key: 'si', label: 'Sí' }, { key: 'no', label: 'No' }]} />
                 </div>

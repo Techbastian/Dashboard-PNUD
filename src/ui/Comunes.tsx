@@ -7,6 +7,7 @@
  * Gráficos hechos a mano (SVG), sin librería: Recharts pesa ~500 KB por un gráfico.
  */
 import { useState, type ReactNode } from 'react';
+import { num } from '../lib/formato';
 
 export interface ChartDatum { label: string; value: number; color: string }
 export interface SeriePunto { fecha: string; n: number }
@@ -72,14 +73,16 @@ export function DistCard({ title, subtitle, children }: { title: string; subtitl
 }
 
 /** KPI de FQSD. `value` null = sin fuente aún (se pinta "—", nunca un cero inventado). */
-export function KPICard({ label, value, subtext, color = 'text-slate-900', title, destacado }: {
+export function KPICard({ label, value, subtext, color = 'text-slate-900', title, destacado, pie }: {
   label: string; value: string | null; subtext?: string; color?: string; title?: string; destacado?: boolean;
+  /** D-80: contenido bajo el número (p. ej. la línea Mujeres · Hombres). */ pie?: ReactNode;
 }) {
   return (
     <div className={`bg-white p-6 rounded-[2rem] border shadow-[0_2px_10px_-3px_rgba(0,0,0,0.05)] flex items-center transition-all hover:shadow-md ${destacado ? 'border-brand/30' : 'border-slate-100'}`} title={title}>
       <div className="flex flex-col min-w-0">
         <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1">{label}</span>
         <span className={`text-[2rem] leading-tight font-black tracking-tighter tnum ${value == null ? 'text-slate-300' : color}`}>{value ?? '—'}</span>
+        {pie && value != null && <div className="mt-1">{pie}</div>}
         {(subtext || value == null) && (
           <p className="mt-1 text-[11px] font-bold text-slate-400 leading-snug">{value == null ? 'Sin fuente aún' : subtext}</p>
         )}
@@ -134,7 +137,7 @@ export function SinDatos({ texto = 'Sin datos' }: { texto?: string }) {
   return <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center py-8">{texto}</p>;
 }
 
-/** Dona + leyenda (FQSD): todas las categorías, sin "Otros"; la leyenda muestra el %. */
+/** Dona + leyenda (FQSD): todas las categorías, sin "Otros"; la leyenda muestra el número y el % (P-76). */
 export function DonutChart({ data, size = 150 }: { data: ChartDatum[]; size?: number }) {
   const total = data.reduce((s, d) => s + d.value, 0);
   const display = [...data].sort((a, b) => b.value - a.value).filter(d => d.value > 0);
@@ -170,7 +173,7 @@ export function DonutChart({ data, size = 150 }: { data: ChartDatum[]; size?: nu
           <div key={i} className="flex items-center gap-1.5">
             <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: d.color }} />
             <span className="text-[10px] text-slate-600 flex-1 truncate leading-none" title={d.label}>{d.label}</span>
-            <span className="text-[10px] font-black text-slate-800 w-10 text-right shrink-0">{fmtPct(d.value, total)}</span>
+            <span className="text-[10px] font-black text-slate-800 text-right shrink-0 tnum whitespace-nowrap">{num(d.value)} <span className="text-slate-400 font-bold">· {fmtPct(d.value, total)}</span></span>
           </div>
         ))}
       </div>

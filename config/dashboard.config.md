@@ -455,6 +455,26 @@ pestanas:
       # P-22: registros por día, a todo el ancho (D-62)
       - { titulo: Registros por día, nota: "Personas que se registraron cada día · filtro por mes", tipo: linea, datos: registros_por_dia }
       - { titulo: Género y edad, nota: "Registro · campo «Género»", tipo: dona, datos: postulaciones.por_genero, debajo: postulaciones.por_edad_rangos }
+      # P-74 (D-80): mitigación y ruta desagregadas por género (función v16, A-73). % = de las registradas de cada género.
+      - titulo: Mitigación de barreras por género
+        nota: "Mujeres y hombres atendidos · % sobre las registradas de cada género"
+        tipo: genero
+        base: "formularios[recorrer-pnud].personas"
+        pasos:
+          - { label: Atendidas en mitigación, valor: uniones.mitigacion.personas, ayuda: Soporte de entrega del servicio o asistencia a una sesión formativa }
+          - { label: Con soporte de entrega del servicio, valor: grupos.mitigadas }
+          - { label: Asistieron a una sesión formativa, valor: "formacion.asistencia_por_tipo[formacion].personas" }
+      - titulo: La ruta por género
+        nota: "Personas en cada etapa · % sobre las registradas de cada género"
+        tipo: genero
+        base: "formularios[recorrer-pnud].personas"
+        pasos:
+          - { label: Registro, valor: "formularios[recorrer-pnud].personas" }
+          - { label: Línea base, valor: "formularios[linea-base].personas" }
+          - { label: Plan de acción, valor: grupos.plan_accion }
+          - { label: Atendidas en mitigación, valor: uniones.mitigacion.personas }
+          - { label: Postuladas a vacantes del proyecto, valor: empleabilidad.personas_postuladas_aliadas }
+          - { label: Vinculadas laboralmente, valor: empleabilidad.colocados }
       - titulo: Nivel educativo
         nota: Registro · sin agrupar, de menor a mayor
         tipo: barras

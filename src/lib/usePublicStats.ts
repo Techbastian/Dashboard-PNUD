@@ -34,16 +34,17 @@ export async function consultarStats(op: OpcionesStats = {}): Promise<PublicStat
 /**
  * Igual que consultarStats, pero con las preguntas en tandas (D-72): con todas a la vez la función pasa el límite de
  * tiempo de la base («canceling statement due to statement timeout»). Cada tanda trae todo lo demás igual; las
- * `respuestas` se juntan. Máximo 3 tandas a la vez para no cargar la base.
+ * `respuestas` se juntan. Máximo `simultaneas` tandas a la vez (3) para no cargar la base.
  */
-export async function consultarStatsEnTandas(op: OpcionesStats = {}, tamano = 12): Promise<PublicStats> {
+export async function consultarStatsEnTandas(op: OpcionesStats = {}, tamano = 12, simultaneas = 3): Promise<PublicStats> {
   const ps = op.preguntas ?? [];
   const tandas: Pregunta[][] = [];
   for (let i = 0; i < ps.length; i += tamano) tandas.push(ps.slice(i, i + tamano));
   if (!tandas.length) tandas.push([]);
   const res: PublicStats[] = [];
-  for (let i = 0; i < tandas.length; i += 3) {
-    res.push(...await Promise.all(tandas.slice(i, i + 3).map(t => consultarStats({ ...op, preguntas: t }))));
+  const k = Math.max(1, simultaneas);
+  for (let i = 0; i < tandas.length; i += k) {
+    res.push(...await Promise.all(tandas.slice(i, i + k).map(t => consultarStats({ ...op, preguntas: t }))));
   }
   const respuestas = Object.assign({}, ...res.map(r => (r.respuestas as Record<string, unknown> | undefined) ?? {}));
   return { ...res[0], respuestas, equipo: res.every(r => r.equipo === true) };
@@ -71,7 +72,9 @@ export function usePublicStats(con?: string[] | null) {
     if (/^0{8}-/.test(config.identidad.cohortId)) { setCargando(false); return; }   // plantilla sin configurar
     setCargando(true);
     try {
-      const res = await consultarStats({ preguntas: preguntasDelDashboard(), con: clave ? clave.split('|') : undefined });
+      // D-81: tandas de 8 preguntas, UNA tras otra. Con las 24 de PNUD en una sola llamada (o 3 tandas en paralelo) la
+      // función pasa los 3 s de `anon` y el Dashboard público no carga («statement timeout», 19-nov); en serie, ~1 s cada una.
+      const res = await consultarStatsEnTandas({ preguntas: preguntasDelDashboard(), con: clave ? clave.split('|') : undefined }, 8, 1);
       if (!vivo.current) return;
       setData(res); setError(null);
     } catch (e) {

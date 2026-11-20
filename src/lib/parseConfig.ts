@@ -6,11 +6,11 @@
 import { parse } from 'yaml';
 import { MODULOS, type Modulo } from './modulos';
 
-export interface Cifra { label: string; valor: string; ayuda?: string; color?: string }
-export interface Meta { fase?: number; meta: string; actual: string; ayuda?: string }
+export interface Cifra { label: string; valor: string; ayuda?: string; color?: string; /** D-80: ruta de su lista por género (por defecto se deduce de `valor`; false = sin desglose). */ genero?: string | false; }
+export interface Meta { fase?: number; meta: string; actual: string; ayuda?: string; /** D-80: ruta de su lista por género (por defecto se deduce de `valor`; false = sin desglose). */ genero?: string | false; }
 /** Etapa de la ruta de la persona (D-37). `valor` = ruta del agregado público; `regla` = cómo se evalúa por persona
  *  en las vistas privadas (si falta, se deduce de `valor`; ver src/lib/etapas.ts). */
-export interface Etapa { etapa: string; valor: string; regla?: string; /** D-65: aclaración que va entre paréntesis en Participantes y Excel, p. ej. «línea base». */ detalle?: string }
+export interface Etapa { etapa: string; valor: string; regla?: string; /** D-65: aclaración que va entre paréntesis en Participantes y Excel, p. ej. «línea base». */ detalle?: string; /** D-80: ruta de su lista por género (por defecto se deduce de `valor`; false = sin desglose). */ genero?: string | false; }
 /** Marca de Participantes (D-44): columna ✓ que no es etapa de la ruta, p. ej. `hv` = hoja de vida cargada.
  *  `despues` (D-60) = nombre de la etapa tras la cual va la columna; sin él, va antes de las etapas. */
 export interface Marca { titulo: string; regla: string; ayuda?: string; despues?: string }
@@ -60,10 +60,16 @@ export interface CifraPestana {
    * formularios (slugs; función pública v14, opción `con`). Las cifras siguen sobre el total. `filtraTexto` = cómo se
    * nombra esa población en el aviso («con registro y línea base»).
    */ filtra?: string[]; filtraTexto?: string;
+  /** D-80: ruta de su lista por género (por defecto se deduce de `valor`; false = sin desglose). */ genero?: string | false;
 }
 export interface Grafico {
   /** linea (D-62): serie por día (`datos` = lista de {fecha, n}, p. ej. registros_por_dia), a todo el ancho. */
-  titulo: string; nota?: string; tipo: 'barras' | 'dona' | 'apilada' | 'pareadas' | 'linea';
+  titulo: string; nota?: string; tipo: 'barras' | 'dona' | 'apilada' | 'pareadas' | 'linea' | 'genero';
+  /**
+   * D-80 genero: un renglón por conteo con mujeres y hombres (función v16). `pasos` = conteos (ruta de valor; el desglose
+   * se deduce como en las cifras o se fija con `genero`). `base` = conteo cuyo desglose es el denominador del
+   * «% de las mujeres / de los hombres» (p. ej. las registradas).
+   */ pasos?: { label: string; valor: string; genero?: string; ayuda?: string }[]; base?: string;
   datos?: string; pregunta?: string; preguntas?: string[];
   /** dona: lista de barras debajo (ruta). */ debajo?: string;
   /** barras: orden fijo de categorías (se muestran también las que están en 0). */ orden?: string[];
@@ -79,6 +85,7 @@ export interface Hito {
   meta?: number; valor?: string; umbral?: number; documental?: boolean; cumplido?: boolean;
   /** D-57: qué mide el hito y cómo se cuenta; se muestra en un globo al pasar el mouse (o enfocar/tocar la tarjeta). */
   explicacion?: string;
+  /** D-80: ruta de su lista por género (por defecto se deduce de `valor`; false = sin desglose). */ genero?: string | false;
 }
 export interface Pestana {
   id: string; titulo: string;
@@ -367,7 +374,7 @@ function validarMotivos(m: unknown): Motivo[] {
 }
 
 const TIPOS_PREGUNTA = ['opcion', 'escala', 'multiple', 'monto', 'numero', 'rango', 'razon', 'alguna'];
-const TIPOS_GRAFICO = ['barras', 'dona', 'apilada', 'pareadas', 'linea'];
+const TIPOS_GRAFICO = ['barras', 'dona', 'apilada', 'pareadas', 'linea', 'genero'];
 
 function validarPestanas(p: unknown, q: unknown, f: unknown, inf: unknown) {
   const err = (m: string): never => { throw new Error(`dashboard.config.md: ${m}`); };
@@ -406,7 +413,10 @@ function validarPestanas(p: unknown, q: unknown, f: unknown, inf: unknown) {
     const graficos = (x.graficos ?? []).map((g, j) => {
       const donde = `pestanas[${i}].graficos[${j}]`;
       if (!g?.titulo || !TIPOS_GRAFICO.includes(g.tipo)) err(`${donde} necesita titulo y tipo (${TIPOS_GRAFICO.join(', ')})`);
-      if (!g.datos && !g.pregunta && !g.preguntas?.length) err(`${donde} necesita datos, pregunta o preguntas`);
+      if (g.tipo === 'genero') {
+        if (!Array.isArray(g.pasos) || !g.pasos.length || g.pasos.some(x => !x?.label || !x.valor)) err(`${donde}: genero necesita pasos (lista de {label, valor})`);
+        if (g.pasos!.length > 10) err(`${donde}: genero admite hasta 10 pasos`);
+      } else if (!g.datos && !g.pregunta && !g.preguntas?.length) err(`${donde} necesita datos, pregunta o preguntas`);
       if (g.tipo === 'linea' && !g.datos) err(`${donde}: linea necesita datos (lista de {fecha, n})`);
       if (g.pregunta) existe(g.pregunta, donde);
       g.preguntas?.forEach(id => existe(id, donde));

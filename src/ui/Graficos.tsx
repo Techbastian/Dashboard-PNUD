@@ -6,11 +6,82 @@
 import type { ReactNode } from 'react';
 import { AlertTriangle, Filter } from 'lucide-react';
 import { num } from '../lib/formato';
+import { cuantas, nombreGenero, partes, type Desglose } from '../lib/genero';
 import { SinDatos } from './Comunes';
 
 const HOMBRES = '#94a3b8';
 const NO = '#f87171';
 const NEUTRO = '#e2e8f0';
+/** D-80: tercera categoría de género (No binario, Prefiere no decir, Otro, Sin dato): gris más claro que Hombres. */
+const OTRAS = '#cbd5e1';
+const colorGenero = (c: string) => (c === 'Mujer' ? 'var(--color-brand)' : c === 'Hombre' ? HOMBRES : OTRAS);
+
+/**
+ * D-80: «● Mujeres 37 · ● Hombres 4 · ● No binario 1» (las otras categorías solo si son > 0).
+ * `claro` = sobre fondo oscuro (bloques del embudo).
+ */
+export function LineaGenero({ d, claro, compacta }: { d: Desglose; claro?: boolean; compacta?: boolean }) {
+  const ps = partes(d);
+  return (
+    <p className={`flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[11px] font-bold leading-snug tnum ${claro ? 'text-white/90' : 'text-slate-500'}`}
+      aria-label={ps.map(p => `${nombreGenero(p.categoria)} ${p.n}`).join(', ')}>
+      {ps.map(p => (
+        <span key={p.categoria} className="inline-flex items-center gap-1 whitespace-nowrap">
+          <span className={`size-2 rounded-full ${claro ? 'ring-1 ring-white/70' : ''}`} style={{ background: colorGenero(p.categoria) }} aria-hidden />
+          {compacta && (p.categoria === 'Mujer' || p.categoria === 'Hombre') ? p.categoria[0] : nombreGenero(p.categoria)} <b className={claro ? 'text-white' : 'text-slate-700'}>{num(p.n)}</b>
+        </span>
+      ))}
+    </p>
+  );
+}
+
+export interface PasoGenero { label: string; d: Desglose | null; base?: Desglose | null; ayuda?: string }
+/**
+ * D-80: un renglón por conteo con dos barras finas (mujeres = marca, hombres = gris) en la misma escala y el número
+ * visible; con `base`, el % de las mujeres y de los hombres de la base que llega a ese conteo. Las demás
+ * categorías (No binario…) se nombran debajo, con su número.
+ */
+export function BarrasGenero({ pasos }: { pasos: PasoGenero[] }) {
+  const con = pasos.filter(p => p.d);
+  if (con.length === 0) return <SinDatos texto="La base aún no trae la desagregación por género (función v16)" />;
+  const max = Math.max(1, ...con.flatMap(p => [cuantas(p.d, 'Mujer'), cuantas(p.d, 'Hombre')]));
+  const pct = (n: number, de: number) => (de > 0 ? `${Math.round((n / de) * 100)} %` : '—');
+  const hayOtras = con.some(p => partes(p.d!).length > 2);
+  return (
+    <div className="space-y-4">
+      {con.map(p => {
+        const m = cuantas(p.d, 'Mujer'), h = cuantas(p.d, 'Hombre');
+        const otras = partes(p.d!).slice(2);
+        return (
+          <div key={p.label} className="space-y-1.5" title={p.ayuda}>
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="text-[12px] font-bold text-slate-700 leading-tight">{p.label}</span>
+              <span className="text-[11px] font-black text-slate-800 tnum whitespace-nowrap">
+                {num(m)} <span className="text-slate-400 font-bold">·</span> <span className="text-slate-500">{num(h)}</span>
+              </span>
+            </div>
+            <div className="space-y-1">
+              <div className="h-2 rounded-sm bg-slate-100 overflow-hidden"><div className="h-full rounded-sm bg-brand" style={{ width: `${(m / max) * 100}%` }} /></div>
+              <div className="h-2 rounded-sm bg-slate-100 overflow-hidden"><div className="h-full rounded-sm" style={{ width: `${(h / max) * 100}%`, background: HOMBRES }} /></div>
+            </div>
+            {(p.base || otras.length > 0) && (
+              <p className="text-[10px] font-bold text-slate-400 tnum">
+                {p.base && <>{pct(m, cuantas(p.base, 'Mujer'))} de las mujeres · {pct(h, cuantas(p.base, 'Hombre'))} de los hombres</>}
+                {p.base && otras.length > 0 && ' · '}
+                {otras.map(o => `${o.categoria}: ${num(o.n)}`).join(' · ')}
+              </p>
+            )}
+          </div>
+        );
+      })}
+      <div className="flex flex-wrap gap-3 pt-1">
+        <span className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500"><span className="size-2 rounded-sm bg-brand" />Mujeres</span>
+        <span className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500"><span className="size-2 rounded-sm" style={{ background: HOMBRES }} />Hombres</span>
+        {hayOtras && <span className="text-[10px] font-bold text-slate-400">Las demás identidades se nombran debajo de cada barra</span>}
+      </div>
+    </div>
+  );
+}
 
 /** Rampa ordinal de un tono (de claro a oscuro) sobre el color de marca. */
 export function rampa(i: number, total: number): string {
@@ -39,9 +110,9 @@ function Barra({ v, max, color = 'bg-brand', label }: { v: number; max: number; 
  * Cifra de pestaña: número grande, «de N» con barra si hay meta, nota debajo. `alerta` = tarjeta ámbar.
  * D-76: con `onFiltrar` la tarjeta es un botón que filtra los gráficos de la pestaña a esa población (`activo` = filtro puesto).
  */
-export function CifraCard({ label, valor, de, deTexto, barra, nota, alerta, onFiltrar, activo }: {
+export function CifraCard({ label, valor, de, deTexto, barra, nota, alerta, onFiltrar, activo, genero }: {
   label: string; valor: number | null; de?: number | null; deTexto?: string; barra?: boolean; nota?: ReactNode; alerta?: boolean;
-  onFiltrar?: () => void; activo?: boolean;
+  onFiltrar?: () => void; activo?: boolean; /** D-80: Mujeres · Hombres · otras, debajo del número. */ genero?: Desglose | null;
 }) {
   const fondo = alerta ? 'bg-amber-50/60 border-amber-200'
     : activo ? 'bg-brand/5 border-brand ring-2 ring-brand/30' : 'bg-white border-slate-100 shadow-[0_2px_10px_-3px_rgba(0,0,0,0.05)]';
@@ -59,6 +130,7 @@ export function CifraCard({ label, valor, de, deTexto, barra, nota, alerta, onFi
         {de != null && <span className="text-sm font-bold text-slate-400">de {num(de)}{deTexto ? ` ${deTexto}` : ''}</span>}
       </div>
       {barra && de != null && valor != null && <Barra v={valor} max={de} label={label} />}
+      {genero && valor != null && <LineaGenero d={genero} />}
       {(nota || valor == null) && <p className={`text-[11px] font-bold leading-snug ${alerta ? 'text-amber-700/80' : 'text-slate-400'}`}>{valor == null ? 'Sin fuente aún' : nota}</p>}
       {onFiltrar && (
         <span className={`mt-1 inline-flex items-center gap-1.5 self-start rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider no-print ${
@@ -89,7 +161,9 @@ export function estadoMeta(actual: number | null, objetivo: number | null): Esta
 }
 
 /** Una meta dentro de la tarjeta de su producto: etiqueta + estado, barra, actual / objetivo y %. */
-export function MetaFila({ label, ayuda, actual, objetivo }: { label: string; ayuda?: string; actual: number | null; objetivo: number | null }) {
+export function MetaFila({ label, ayuda, actual, objetivo, genero }: {
+  label: string; ayuda?: string; actual: number | null; objetivo: number | null; /** D-80 */ genero?: Desglose | null;
+}) {
   const est = estadoMeta(actual, objetivo);
   const [txt, cls] = CHIP[est];
   return (
@@ -99,6 +173,7 @@ export function MetaFila({ label, ayuda, actual, objetivo }: { label: string; ay
           {label} <span className={`ml-1 inline-block align-middle text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${cls}`}>{txt}</span>
         </p>
         {ayuda && <p className="text-[10px] font-bold text-slate-400 mt-0.5">{ayuda}</p>}
+        {genero && actual != null && <div className="mt-1"><LineaGenero d={genero} /></div>}
       </div>
       <div className="hidden sm:block">
         <Barra v={actual ?? 0} max={objetivo ?? 0} color={est === 'cumplida' ? 'bg-emerald-500' : 'bg-brand'} label={label} />
@@ -135,7 +210,7 @@ export function AlertaFoco({ children }: { children: ReactNode }) {
 }
 
 /** Embudo de la ruta en bloques: rampa de un tono, de la etapa más oscura (registro) a la más clara. */
-export function EmbudoBloques({ etapas }: { etapas: { etapa: string; n: number | null }[] }) {
+export function EmbudoBloques({ etapas }: { etapas: { etapa: string; n: number | null; genero?: Desglose | null }[] }) {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
       {etapas.map((e, i) => {
@@ -145,6 +220,7 @@ export function EmbudoBloques({ etapas }: { etapas: { etapa: string; n: number |
           <div key={e.etapa} className="rounded-xl px-4 py-3.5" style={{ background: fondo }}>
             <p className={`text-2xl font-black tnum ${claro ? 'text-slate-800' : 'text-white'}`}>{e.n == null ? '—' : num(e.n)}</p>
             <p className={`text-[11px] font-bold ${claro ? 'text-slate-600' : 'text-white/85'}`}>{e.etapa}{e.n == null ? ' · sin fuente' : ''}</p>
+            {e.genero && e.n != null && <div className="mt-1.5"><LineaGenero d={e.genero} claro={!claro} compacta /></div>}
           </div>
         );
       })}
@@ -152,7 +228,7 @@ export function EmbudoBloques({ etapas }: { etapas: { etapa: string; n: number |
   );
 }
 
-export interface FilaApilada { label: string; segmentos: { categoria: string; n: number }[]; cifra: number | null }
+export interface FilaApilada { label: string; segmentos: { categoria: string; n: number }[]; cifra: number | null; /** Personas detrás de la cifra (P-76). */ cuenta?: number | null }
 /**
  * Barras apiladas al 100 % (una por fila) con la cifra destacada a la derecha y la leyenda debajo.
  * `paleta`: escala = rampa ordinal; sino = Sí marca / No rojo / resto gris.
@@ -168,7 +244,7 @@ export function ApiladaFilas({ filas, categorias, paleta = 'escala' }: { filas: 
       {filas.map(f => {
         const total = f.segmentos.reduce((s, x) => s + x.n, 0);
         return (
-          <div key={f.label} className="grid grid-cols-[6.5rem_minmax(0,1fr)_2.75rem] items-center gap-3">
+          <div key={f.label} className="grid grid-cols-[6.5rem_minmax(0,1fr)_auto] items-center gap-3">
             <span className="text-[11px] font-bold text-slate-600 leading-tight">{f.label}</span>
             <div className="flex h-3.5 rounded-sm overflow-hidden bg-slate-100" role="img"
               aria-label={`${f.label}: ${f.segmentos.filter(s => s.n > 0).map(s => `${s.categoria} ${s.n}`).join(', ')}`}>
@@ -177,7 +253,9 @@ export function ApiladaFilas({ filas, categorias, paleta = 'escala' }: { filas: 
                   title={`${s.categoria}: ${s.n} (${Math.round((s.n / total) * 100)}%)`} />
               ))}
             </div>
-            <span className="text-xs font-black text-slate-800 text-right tnum">{f.cifra == null || total === 0 ? '—' : `${f.cifra}%`}</span>
+            <span className="text-xs font-black text-slate-800 text-right tnum whitespace-nowrap">{f.cifra == null || total === 0 ? '—' : `${f.cifra}%`}
+              {f.cifra != null && total > 0 && f.cuenta != null && <span className="block text-[10px] font-bold text-slate-400">{num(f.cuenta)} de {num(total)}</span>}
+            </span>
           </div>
         );
       })}
@@ -192,19 +270,21 @@ export function ApiladaFilas({ filas, categorias, paleta = 'escala' }: { filas: 
   );
 }
 
-/** Barras pareadas mujeres vs hombres (% de cada grupo). */
-export function BarrasPareadas({ filas }: { filas: { label: string; m: number; h: number }[] }) {
+/** Barras pareadas mujeres vs hombres (% de cada grupo; con `nm`/`nh`, también cuántas personas, P-76). */
+export function BarrasPareadas({ filas }: { filas: { label: string; m: number; h: number; nm?: number; nh?: number }[] }) {
   if (filas.length === 0) return <SinDatos texto="Aún no hay respuestas" />;
   return (
     <div className="space-y-3">
       {filas.map(f => (
-        <div key={f.label} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_4.75rem] items-center gap-3">
+        <div key={f.label} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_5.5rem] items-center gap-3">
           <span className="text-[11px] font-bold text-slate-600 leading-tight">{f.label}</span>
           <div className="space-y-1">
             <div className="h-2 rounded-sm bg-slate-100 overflow-hidden"><div className="h-full rounded-sm bg-brand" style={{ width: `${f.m}%` }} /></div>
             <div className="h-2 rounded-sm bg-slate-100 overflow-hidden"><div className="h-full rounded-sm" style={{ width: `${f.h}%`, background: HOMBRES }} /></div>
           </div>
-          <span className="text-[11px] font-black text-slate-800 text-right tnum">{f.m}% · <span className="text-slate-500">{f.h}%</span></span>
+          <span className="text-[11px] font-black text-slate-800 text-right tnum whitespace-nowrap">{f.m}% · <span className="text-slate-500">{f.h}%</span>
+            {f.nm != null && f.nh != null && <span className="block text-[10px] font-bold text-slate-400">{num(f.nm)} · {num(f.nh)}</span>}
+          </span>
         </div>
       ))}
       <div className="flex gap-3 pt-1">

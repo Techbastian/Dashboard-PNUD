@@ -7,8 +7,10 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Filter, Loader2, X } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { config } from '../lib/config';
+import { nombreEtapa } from '../lib/etapas';
 import type { CifraPestana, Grafico, Pestana } from '../lib/config';
-import { resolver } from '../lib/ruta';
+import { resolver, valorEn } from '../lib/ruta';
+import { desgloseDe } from '../lib/genero';
 import { num } from '../lib/formato';
 import {
   destaca, fueraDeFoco, pct, personasFueraDeFoco, pregunta, respuesta, type Respuesta,
@@ -16,7 +18,7 @@ import {
 import { conAplicado, usePublicStats, type PublicStats } from '../lib/usePublicStats';
 import { DonutChart, ListaBarras, SeriePorDia, SinDatos, toChart, type SeriePunto } from '../ui/Comunes';
 import {
-  AlertaFoco, ApiladaFilas, BarrasPareadas, CifraCard, EmbudoBloques, MetaFila, TarjetaBloque, type FilaApilada,
+  AlertaFoco, ApiladaFilas, BarrasGenero, BarrasPareadas, CifraCard, EmbudoBloques, MetaFila, TarjetaBloque, type FilaApilada,
 } from '../ui/Graficos';
 import { ErrorBoundary } from '../ui/ErrorBoundary';
 import { BloqueHitos } from '../ui/Hitos';
@@ -30,8 +32,7 @@ const valorN = (data: PublicStats, ruta?: string) => {
 
 /** Lista [{categoria, n}] SIN quitar los ceros (ruta.lista los quita). */
 function listaTodo(data: unknown, ruta: string): Item[] | null {
-  let x: unknown = data;
-  for (const p of ruta.split('.')) { if (x == null) return null; x = (x as Record<string, unknown>)[p]; }
+  const x = valorEn(data, ruta);   // D-80: admite [clave] («formularios[linea-base].por_genero»)
   if (!Array.isArray(x)) return null;
   return x.map(e => ({ categoria: String(e.categoria ?? e.estado ?? e.tipo ?? '—'), n: Number(e.n ?? e.personas ?? e.total ?? 0) }));
 }
@@ -74,20 +75,24 @@ function Cifra({ c, data, onFiltrar, activo }: { c: CifraPestana; data: PublicSt
     nota = n ? `${num(n)} fuera de ${foco.nombre} (${fuera.map(x => x.categoria).join(', ')})` : `Todas en ${foco.nombre}`;
   }
   return <CifraCard label={c.label} valor={v} de={de} deTexto={c.de ? c.deLabel : undefined} barra={Boolean(c.meta)} nota={nota}
-    onFiltrar={onFiltrar} activo={activo} />;
+    onFiltrar={onFiltrar} activo={activo} genero={desgloseDe(data, c.valor, c.genero)} />;
 }
 
 const etiqueta = (id: string) => pregunta(id)?.titulo ?? id;
 
 function filasApilada(g: Grafico, data: PublicStats): { filas: FilaApilada[]; categorias: string[] } | null {
-  const cifra = (cats: Respuesta['categorias'], campo: 'n' | 'mujeres' | 'hombres', base: number) =>
-    g.destacar?.length ? pct(cats.filter(c => destaca(c.categoria, g.destacar)).reduce((s, c) => s + c[campo], 0), base) : null;
+  const cuenta = (cats: Respuesta['categorias'], campo: 'n' | 'mujeres' | 'hombres') =>
+    g.destacar?.length ? cats.filter(c => destaca(c.categoria, g.destacar)).reduce((s, c) => s + c[campo], 0) : null;
+  const cifra = (cats: Respuesta['categorias'], campo: 'n' | 'mujeres' | 'hombres', base: number) => {
+    const k = cuenta(cats, campo);
+    return k == null ? null : pct(k, base);
+  };
   if (g.pregunta) {
     const r = respuesta(data, g.pregunta);
     if (!r) return null;
     const categorias = r.categorias.map(c => c.categoria);
     const fila = (label: string, campo: 'n' | 'mujeres' | 'hombres', base: number): FilaApilada =>
-      ({ label, segmentos: r.categorias.map(c => ({ categoria: c.categoria, n: c[campo] })), cifra: cifra(r.categorias, campo, base) });
+      ({ label, segmentos: r.categorias.map(c => ({ categoria: c.categoria, n: c[campo] })), cifra: cifra(r.categorias, campo, base), cuenta: cuenta(r.categorias, campo) });
     const filas = [fila('Total', 'n', r.respondieron)];
     if (g.porGenero) filas.push(fila('Mujeres', 'mujeres', r.respondieron_mujeres), fila('Hombres', 'hombres', r.respondieron_hombres));
     return { filas, categorias };
@@ -97,14 +102,17 @@ function filasApilada(g: Grafico, data: PublicStats): { filas: FilaApilada[]; ca
   const categorias = [...new Set(rs.flatMap(x => x.r.categorias.map(c => c.categoria)))];
   return {
     categorias,
-    filas: rs.map(({ id, r }) => ({ label: etiqueta(id), segmentos: r.categorias.map(c => ({ categoria: c.categoria, n: c.n })), cifra: cifra(r.categorias, 'n', r.respondieron) })),
+    filas: rs.map(({ id, r }) => ({ label: etiqueta(id), segmentos: r.categorias.map(c => ({ categoria: c.categoria, n: c.n })), cifra: cifra(r.categorias, 'n', r.respondieron), cuenta: cuenta(r.categorias, 'n') })),
   };
 }
 
 function GraficoCard({ g, data }: { g: Grafico; data: PublicStats }) {
   let cuerpo: ReactNode;
-  if (g.tipo === 'linea') {
-    const x = resolver(data, g.datos!);
+  if (g.tipo === 'genero') {
+    const base = g.base ? desgloseDe(data, g.base) : null;
+    cuerpo = <BarrasGenero pasos={(g.pasos ?? []).map(x => ({ label: x.label, ayuda: x.ayuda, d: desgloseDe(data, x.valor, x.genero), base }))} />;
+  } else if (g.tipo === 'linea') {
+    const x = valorEn(data, g.datos!);   // resolver() solo da números: con él la serie salía siempre vacía
     const serie = Array.isArray(x) ? (x as SeriePunto[]).filter(p => typeof p?.fecha === 'string') : [];
     cuerpo = serie.length ? <SeriePorDia serie={serie} /> : <SinDatos texto="Aún no hay registros" />;
   } else if (g.tipo === 'apilada') {
@@ -115,7 +123,7 @@ function GraficoCard({ g, data }: { g: Grafico; data: PublicStats }) {
       const r = respuesta(data, id);
       if (!r || r.respondieron === 0) return [];
       const suma = (campo: 'n' | 'mujeres' | 'hombres') => r.categorias.filter(c => destaca(c.categoria, g.destacar)).reduce((s, c) => s + c[campo], 0);
-      return [{ label: etiqueta(id), t: pct(suma('n'), r.respondieron), m: pct(suma('mujeres'), r.respondieron_mujeres), h: pct(suma('hombres'), r.respondieron_hombres) }];
+      return [{ label: etiqueta(id), t: pct(suma('n'), r.respondieron), m: pct(suma('mujeres'), r.respondieron_mujeres), h: pct(suma('hombres'), r.respondieron_hombres), nm: suma('mujeres'), nh: suma('hombres') }];
     }).sort((a, b) => b.t - a.t).slice(0, g.top ?? 5);
     cuerpo = <BarrasPareadas filas={filas} />;
   } else {
@@ -164,7 +172,8 @@ function Metas({ data }: { data: PublicStats }) {
           <TarjetaBloque key={f} titulo={resto.length ? `${titulo.replace(/^Producto\s*/i, 'P')} · ${resto.join(' · ')}` : titulo}>
             <div>
               {config.metas.filter(m => String(m.fase ?? 1) === f).map(m => (
-                <MetaFila key={m.meta} label={m.meta} ayuda={m.ayuda} actual={valorN(data, m.actual)} objetivo={objetivoDe(data, m.meta)} />
+                <MetaFila key={m.meta} label={m.meta} ayuda={m.ayuda} actual={valorN(data, m.actual)} objetivo={objetivoDe(data, m.meta)}
+                  genero={desgloseDe(data, m.actual, m.genero)} />
               ))}
             </div>
           </TarjetaBloque>
@@ -222,7 +231,7 @@ function ContenidoPestana({ p, data, imprimir }: { p: Pestana; data: PublicStats
       {p.embudo && config.embudo.length > 0 && (
         <ErrorBoundary nombre="embudo">
           <TarjetaBloque titulo="Ruta de la persona" subtitulo="Cuántas personas llegan a cada etapa">
-            <EmbudoBloques etapas={config.embudo.map(e => ({ etapa: e.etapa, n: valorN(data, e.valor) }))} />
+            <EmbudoBloques etapas={config.embudo.map(e => ({ etapa: nombreEtapa(e), n: valorN(data, e.valor), genero: desgloseDe(data, e.valor, e.genero) }))} />
           </TarjetaBloque>
         </ErrorBoundary>
       )}

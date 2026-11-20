@@ -51,6 +51,9 @@ export interface Postulacion {
 export interface Colocacion {
   id: string; personaId: string; empresa: string | null; cargo: string; inicio: string; modalidad: string | null; estado: string | null; activa: boolean;
   duracionMeses: number | null;
+  /** D-79 (A-68): `colocacion` = placements (se registra y termina desde aquí); `contratacion` = participant_hirings sin
+   *  placement, registrada en el módulo de intermediación de la plataforma (aquí es de solo lectura). */
+  origen: 'colocacion' | 'contratacion';
   /** A-22: esta colocación no cuenta en las métricas de la cohorte (la persona sigue en todo lo demás). */
   excluida: string | null;
 }
@@ -288,11 +291,14 @@ async function cargarTodo(): Promise<DatosCohorte> {
   const apps = (await todas('project_applications', 'id, candidate_id, status, created_at, custom_answers', q => q.eq('cohort_id', COHORTE)))
     .filter(a => !personasFuera.has(String(a.candidate_id ?? '')));
   const idsPersonas = apps.map(a => String(a.candidate_id ?? '')).filter(Boolean);
-  const [cands, matriculas, eventos, colocRaw, postPlat, postExt, enlaces, vacRaw, socio, llamRaw, estRaw] = await Promise.all([
+  const [cands, matriculas, eventos, colocRaw, contRaw, postPlat, postExt, enlaces, vacRaw, socio, llamRaw, estRaw] = await Promise.all([
     porIds('candidates', 'id, first_name, last_name, document_type, document_number, email, phone, city, gender, birth_date, education_level, cv_url', 'id', idsPersonas),
     todas('program_enrollments', 'id, candidate_id, status, enrolled_at', q => q.eq('cohort_id', COHORTE)),
     todas('events', 'id, nombre, tipo, fase, modalidad, ubicacion, fecha_hora_inicio, fecha_hora_fin, descripcion, toma_asistencia, external_source, meeting_link', q => q.eq('cohort_id', COHORTE).order('fecha_hora_inicio')),
     porIds('placements', 'id, talent_id, company_id, hiring_employer_id, job_id, start_date, role_sector, modality, status, deactivated_at, duration_months', 'talent_id', idsPersonas),
+    // D-79 (A-68): contrataciones del módulo de intermediación de la plataforma; las que tienen placement ya vienen arriba.
+    porIds('participant_hirings', 'id, candidate_id, hiring_employer_id, position, area, start_date, modality, status, placement_id', 'candidate_id', idsPersonas)
+      .then(r => r.filter(h => h.placement_id == null)),
     porIds('applications', 'id, candidate_id, job_id, status, created_at', 'candidate_id', idsPersonas),
     porIds('participant_vacancy_applications', 'id, candidate_id, vacancy_name, company_name, application_url, observations, created_at', 'candidate_id', idsPersonas),
     todas('company_cohorts', config.empresas.diagnostico ? 'company_id, diagnostico_url, diagnostico_fecha' : 'company_id', q => q.eq('cohort_id', COHORTE)),
@@ -312,7 +318,7 @@ async function cargarTodo(): Promise<DatosCohorte> {
   // Vacantes y empresas que hacen falta para nombrar postulaciones y colocaciones de la plataforma.
   const jobsExtra = await porIds('jobs', 'id, company_id, title, cohort_id', 'id', [...postPlat.map(p => String(p.job_id ?? '')), ...colocRaw.map(c => String(c.job_id ?? ''))]);
   const idsEmpresas = [...enlaces.map(e => String(e.company_id)), ...jobsExtra.map(j => String(j.company_id ?? '')), ...colocRaw.map(c => String(c.company_id ?? ''))];
-  const empleadoresExt = await porIds('hiring_employers', 'id, name', 'id', colocRaw.map(c => String(c.hiring_employer_id ?? '')));
+  const empleadoresExt = await porIds('hiring_employers', 'id, name', 'id', [...colocRaw, ...contRaw].map(c => String(c.hiring_employer_id ?? '')));
   const externoPorId = new Map(empleadoresExt.map(h => [String(h.id), String(h.name)]));
   const emps = await porIds('companies', 'id, company_name, trade_name, nit, size_range, industry, operation_cities, address, contact_name, contact_phone, contact_email, created_at', 'id', idsEmpresas);
   const empPorId = new Map(emps.map(e => [String(e.id), e]));
@@ -391,13 +397,19 @@ async function cargarTodo(): Promise<DatosCohorte> {
         empresa: s(p.company_name), estado: null, fecha: s(p.created_at), url: s(p.application_url), observaciones: s(p.observations), atribuible: true,
         excluida: intermFuera.get(String(p.candidate_id)) ?? null })),
     ].sort((a, b) => String(b.fecha).localeCompare(String(a.fecha))),
-    colocaciones: colocRaw.map(c => ({
+    colocaciones: [...colocRaw.map((c): Colocacion => ({
       id: String(c.id), personaId: String(c.talent_id),
       empresa: nombreEmpresa(c.company_id) ?? externoPorId.get(String(c.hiring_employer_id ?? '')) ?? (jobPorId.get(String(c.job_id ?? '')) ? nombreEmpresa(jobPorId.get(String(c.job_id))!.company_id) : null),
       cargo: String(c.role_sector ?? ''), inicio: String(c.start_date), modalidad: s(c.modality), estado: s(c.status),
       activa: !c.deactivated_at, duracionMeses: c.duration_months == null ? null : Number(c.duration_months),
-      excluida: colocFuera.get(String(c.id)) ?? null,
-    })),
+      origen: 'colocacion', excluida: colocFuera.get(String(c.id)) ?? null,
+    })), ...contRaw.map((h): Colocacion => ({
+      id: String(h.id), personaId: String(h.candidate_id), empresa: externoPorId.get(String(h.hiring_employer_id ?? '')) ?? null,
+      cargo: String(h.position ?? h.area ?? ''), inicio: String(h.start_date ?? ''), modalidad: s(h.modality), estado: s(h.status),
+      // CHECK de la tabla: colocado | finalizado | renuncia | despido. Solo «colocado» sigue activa (igual que la función v15).
+      activa: h.status === 'colocado', duracionMeses: null,
+      origen: 'contratacion', excluida: colocFuera.get(String(h.id)) ?? null,
+    }))],
     exclusiones,
     llamadas: llamRaw.filter(l => !personasFuera.has(String(l.candidate_id))).map(l => ({
       id: String(l.id), personaId: String(l.candidate_id), fecha: String(l.fecha), canal: String(l.canal) as CanalContacto,

@@ -6,6 +6,7 @@
 import { Fragment, useEffect, useMemo, useState, type ReactElement, type ReactNode } from 'react';
 import { Loader2, RefreshCw, AlertCircle, FlaskConical } from 'lucide-react';
 import { config } from '../lib/config';
+import { nombreEtapa } from '../lib/etapas';
 import { lista, resolver, type Valor } from '../lib/ruta';
 import { num, humano } from '../lib/formato';
 import { usePublicStats, type PublicStats } from '../lib/usePublicStats';
@@ -287,7 +288,7 @@ export default function DashboardView() {
     ),
     registros: () => serie.length === 0 ? null : <RegistrosCard serie={serie} />,
     embudo: () => config.embudo.length === 0 ? null : (
-      <EmbudoCard etapas={config.embudo.map(e => ({ etapa: e.etapa, valor: resolver(data, e.valor) }))} />
+      <EmbudoCard etapas={config.embudo.map(e => ({ etapa: nombreEtapa(e), valor: resolver(data, e.valor) }))} />
     ),
     empresas: () => (
       <div id="empresas" className="space-y-4">

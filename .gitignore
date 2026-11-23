@@ -9,3 +9,4 @@ coverage/
 databases/
 documentos_soporte/
 .dev/
+.playwright-mcp/

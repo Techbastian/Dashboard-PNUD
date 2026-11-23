@@ -1,0 +1,41 @@
+- generic [ref=f2e3]:
+  - complementary "Menú principal" [ref=f2e4]:
+    - img "Recorrer · Ruta de Inclusión Laboral" [ref=f2e6]
+    - navigation [ref=f2e7]:
+      - link "Dashboard" [ref=f2e8] [cursor=pointer]:
+        - /url: /
+      - link "Participantes Requiere sesión" [ref=f2e16] [cursor=pointer]:
+        - /url: /participantes
+        - generic [ref=f2e20]: Participantes
+        - img "Requiere sesión" [ref=f2e21]
+      - link "Colocación Requiere sesión" [ref=f2e24] [cursor=pointer]:
+        - /url: /colocacion
+        - generic [ref=f2e28]: Colocación
+        - img "Requiere sesión" [ref=f2e29]
+      - link "Empresas Requiere sesión" [ref=f2e32] [cursor=pointer]:
+        - /url: /empresas
+        - generic [ref=f2e37]: Empresas
+        - img "Requiere sesión" [ref=f2e38]
+      - link "Calendario Requiere sesión" [ref=f2e41] [cursor=pointer]:
+        - /url: /calendario
+        - generic [ref=f2e44]: Calendario
+        - img "Requiere sesión" [ref=f2e45]
+      - link "Listados Requiere sesión" [ref=f2e48] [cursor=pointer]:
+        - /url: /listados
+        - generic [ref=f2e53]: Listados
+        - img "Requiere sesión" [ref=f2e54]
+      - link "Informes Requiere sesión" [ref=f2e57] [cursor=pointer]:
+        - /url: /informes
+        - generic [ref=f2e61]: Informes
+        - img "Requiere sesión" [ref=f2e62]
+    - paragraph [ref=f2e66]: Plataforma de Disruptia · datos en vivo
+  - generic [ref=f2e67]:
+    - banner [ref=f2e68]:
+      - button "Acceso equipo" [ref=f2e71]
+    - main [ref=f2e75]:
+      - generic [ref=f2e76]:
+        - generic [ref=f2e77]:
+          - heading "Dashboard" [level=2] [ref=f2e78]
+          - paragraph [ref=f2e79]: Módulo de gestión · Recorrer · Ruta de Inclusión Laboral
+        - paragraph [ref=f2e84]: Cargando datos en vivo…
+    - contentinfo [ref=f2e85]: Datos agregados en vivo desde la plataforma de Disruptia · Recorrer · Ruta de Inclusión Laboral

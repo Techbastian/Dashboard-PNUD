@@ -6,6 +6,7 @@
  * D-51..D-53: estado activo/inactivo (deserción interna sobre todas las personas), llamadas e historial en la ficha.
  * D-65: filtro tipo Excel en cada columna (se combinan con «Y»; varias casillas de una columna, con «O»), vistas
  * rápidas de la config, filtros en la dirección de la página (sin la búsqueda: es PII) y descarga en Excel de lo filtrado.
+ * D-83: las columnas de fecha (hoy «Fecha de registro») tienen además su rango desde/hasta a la vista, sobre la tabla.
  * D-80: columna Género (con filtro), Mujeres · Hombres en cada cifra y el bloque «Por género», todo sobre lo filtrado.
  */
 import { useCallback, useMemo, useRef, useState } from 'react';
@@ -18,7 +19,7 @@ import { descargarXlsx, hoja, type Columna } from '../lib/excel';
 import { config } from '../lib/config';
 import { FormPostulacionExterna, BorrarPostulacion, FormColocacion, TerminarColocacion, NoCuenta } from '../ui/Gestion';
 import { BarraDatos, Buscador, Cargando, ErrorDatos, PanelLateral, BloqueFicha, MarcaEtapa, Etiqueta, Vacio } from '../ui/Privado';
-import { BotonFiltro, MenuFiltro, type OpcionFiltro, type Rango } from '../ui/FiltroExcel';
+import { BotonFiltro, MenuFiltro, RangoVisible, type OpcionFiltro, type Rango } from '../ui/FiltroExcel';
 import { KPICard } from '../ui/Comunes';
 import { BarrasGenero, LineaGenero } from '../ui/Graficos';
 import { contarGenero, sexoDe } from '../lib/genero';
@@ -269,6 +270,11 @@ export default function ParticipantesView() {
             ))}
           </div>
         )}
+
+        {cols.filter(c => c.tipo === 'fecha').map(c => {
+          const fl = filtros.get(c.key);
+          return <RangoVisible key={c.key} titulo={c.titulo} rango={fl && !Array.isArray(fl) ? fl : null} onRango={r => ponerFiltro(c.key, r)} />;
+        })}
 
         <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-slate-100">
           <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mr-1">Filtros aplicados</span>

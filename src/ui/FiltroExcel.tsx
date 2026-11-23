@@ -21,6 +21,52 @@ export function BotonFiltro({ activo, titulo, onAbrir }: { activo: boolean; titu
   );
 }
 
+export type Atajo = number | 'mes' | 'anterior';
+export const ATAJOS: readonly (readonly [Atajo, string])[] = [[7, 'Últimos 7 días'], ['mes', 'Este mes'], ['anterior', 'Mes anterior']];
+
+/** Rango de un atajo, en días de Bogotá: últimos N días (hasta hoy), este mes o el mes anterior completo. */
+export function rangoAtajo(k: Atajo): Rango {
+  const hoy = diaBogota(new Date().toISOString());
+  const [y, m] = hoy.split('-').map(Number);
+  if (k === 'mes') return { desde: `${hoy.slice(0, 7)}-01`, hasta: hoy };
+  if (k === 'anterior') {
+    const py = m === 1 ? y - 1 : y, pm = String(m === 1 ? 12 : m - 1).padStart(2, '0');
+    return { desde: `${py}-${pm}-01`, hasta: `${py}-${pm}-${new Date(Date.UTC(py, Number(pm), 0)).getUTCDate()}` };
+  }
+  const d = new Date(`${hoy}T12:00:00Z`); d.setUTCDate(d.getUTCDate() - k);
+  return { desde: d.toISOString().slice(0, 10), hasta: hoy };
+}
+
+/**
+ * D-83: rango de fechas siempre a la vista (fuera del ▾ de la columna). Se aplica al instante; comparte el valor
+ * con el filtro de la columna, así que los dos muestran lo mismo.
+ */
+export function RangoVisible({ titulo, rango, onRango }: { titulo: string; rango: Rango | null; onRango: (r: Rango | null) => void }) {
+  const desde = rango?.desde ?? '', hasta = rango?.hasta ?? '';
+  const poner = (d: string, h: string) => onRango(d || h ? { desde: d, hasta: h } : null);
+  const campo = 'bg-slate-50 border border-slate-200 rounded-xl px-2 py-1.5 text-xs font-bold text-slate-600';
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mr-1">{titulo}</span>
+      <label className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-500">Desde
+        <input type="date" value={desde} max={hasta || undefined} onChange={e => poner(e.target.value, hasta)} className={campo} />
+      </label>
+      <label className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-500">Hasta
+        <input type="date" value={hasta} min={desde || undefined} onChange={e => poner(desde, e.target.value)} className={campo} />
+      </label>
+      {ATAJOS.map(([k, l]) => {
+        const r = rangoAtajo(k), activo = r.desde === desde && r.hasta === hasta;
+        return (
+          <button key={l} type="button" onClick={() => onRango(r)} aria-pressed={activo}
+            className={`px-3 py-1.5 rounded-full border text-xs font-bold transition-colors ${
+              activo ? 'border-brand bg-brand/10 text-brand' : 'border-dashed border-slate-300 text-slate-600 hover:border-solid hover:text-brand'}`}>{l}</button>
+        );
+      })}
+      {rango && <button type="button" onClick={() => onRango(null)} className="text-[10px] font-black uppercase tracking-widest text-brand hover:opacity-80">Quitar fechas</button>}
+    </div>
+  );
+}
+
 const ANCHO = 288;
 const BOTON = 'px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border';
 
@@ -63,18 +109,7 @@ export function MenuFiltro({ titulo, anchor, tipo, textosOrden, orden, opciones 
 
   const alternar = (v: string) => setMarcadas(s => { const n = new Set(s); if (n.has(v)) n.delete(v); else n.add(v); return n; });
   const todo = () => setMarcadas(s => { const n = new Set(s); visibles.forEach(o => (todas ? n.delete(o.valor) : n.add(o.valor))); return n; });
-  const atajo = (dias: number | 'mes' | 'anterior') => {
-    const hoy = diaBogota(new Date().toISOString());
-    const [y, m] = hoy.split('-').map(Number);
-    if (dias === 'mes') { setDesde(`${hoy.slice(0, 7)}-01`); setHasta(hoy); return; }
-    if (dias === 'anterior') {
-      const py = m === 1 ? y - 1 : y, pm = m === 1 ? 12 : m - 1;
-      const fin = new Date(Date.UTC(py, pm, 0)).getUTCDate();
-      setDesde(`${py}-${String(pm).padStart(2, '0')}-01`); setHasta(`${py}-${String(pm).padStart(2, '0')}-${fin}`); return;
-    }
-    const d = new Date(`${hoy}T12:00:00Z`); d.setUTCDate(d.getUTCDate() - dias);
-    setDesde(d.toISOString().slice(0, 10)); setHasta(hoy);
-  };
+  const atajo = (k: Atajo) => { const r = rangoAtajo(k); setDesde(r.desde); setHasta(r.hasta); };
   const aceptar = () => {
     if (tipo === 'fecha') onRango(desde || hasta ? { desde, hasta } : null);
     if (tipo === 'lista') onLista(opciones.every(o => marcadas.has(o.valor)) ? null : opciones.filter(o => marcadas.has(o.valor)).map(o => o.valor));
@@ -131,7 +166,7 @@ export function MenuFiltro({ titulo, anchor, tipo, textosOrden, orden, opciones 
               className="bg-slate-50 border border-slate-200 rounded-xl px-2 py-2 text-xs font-bold text-slate-600" />
           </div>
           <div className="flex flex-wrap gap-1.5">
-            {([[7, 'Últimos 7 días'], ['mes', 'Este mes'], ['anterior', 'Mes anterior']] as const).map(([k, l]) => (
+            {ATAJOS.map(([k, l]) => (
               <button key={l} type="button" onClick={() => atajo(k)} className="px-2.5 py-1 rounded-full border border-slate-200 bg-slate-50 text-[11px] font-bold text-slate-600 hover:text-slate-800">{l}</button>
             ))}
           </div>

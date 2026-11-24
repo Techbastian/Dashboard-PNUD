@@ -173,7 +173,7 @@ function Metas({ data }: { data: PublicStats }) {
             <div>
               {config.metas.filter(m => String(m.fase ?? 1) === f).map(m => (
                 <MetaFila key={m.meta} label={m.meta} ayuda={m.ayuda} actual={valorN(data, m.actual)} objetivo={objetivoDe(data, m.meta)}
-                  genero={desgloseDe(data, m.actual, m.genero)} />
+                  genero={desgloseDe(data, m.actual, m.genero)} soloValor={m.soloValor} />
               ))}
             </div>
           </TarjetaBloque>

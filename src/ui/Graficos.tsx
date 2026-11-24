@@ -161,11 +161,22 @@ export function estadoMeta(actual: number | null, objetivo: number | null): Esta
 }
 
 /** Una meta dentro de la tarjeta de su producto: etiqueta + estado, barra, actual / objetivo y %. */
-export function MetaFila({ label, ayuda, actual, objetivo, genero }: {
+export function MetaFila({ label, ayuda, actual, objetivo, genero, soloValor }: {
   label: string; ayuda?: string; actual: number | null; objetivo: number | null; /** D-80 */ genero?: Desglose | null;
+  /** D-85: solo la cantidad (sin barra, objetivo, % ni estado). */ soloValor?: boolean;
 }) {
   const est = estadoMeta(actual, objetivo);
   const [txt, cls] = CHIP[est];
+  if (soloValor) return (
+    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-5 gap-y-2 py-3.5 border-t border-slate-100 first:border-t-0">
+      <div className="min-w-0">
+        <p className="text-[13px] font-bold text-slate-700 leading-snug">{label}</p>
+        {ayuda && <p className="text-[10px] font-bold text-slate-400 mt-0.5">{ayuda}</p>}
+        {genero && actual != null && <div className="mt-1"><LineaGenero d={genero} /></div>}
+      </div>
+      <p className="text-xl font-black text-slate-800 tnum text-right">{actual == null ? '—' : num(actual)}</p>
+    </div>
+  );
   return (
     <div className="grid grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_auto] items-center gap-x-5 gap-y-2 py-3.5 border-t border-slate-100 first:border-t-0">
       <div className="min-w-0">

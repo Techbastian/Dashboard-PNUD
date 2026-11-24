@@ -75,9 +75,9 @@ function tablaMetas(s: PublicStats): Fila[] {
   const obj = (n: string) => metas.find(m => m.nombre.trim().toLowerCase() === n.trim().toLowerCase())?.meta ?? null;
   return [['Producto', 'Meta', 'Actual', 'Objetivo', '% de avance', 'Estado', 'Cómo se mide'],
     ...config.metas.map(m => {
-      const a = valor(s, m.actual), o = obj(m.meta);
+      const a = valor(s, m.actual), o = m.soloValor ? null : obj(m.meta);   // D-85: solo la cantidad
       return [config.fases[String(m.fase ?? 1)] ?? `Fase ${m.fase ?? 1}`, m.meta, a, o, a != null && o ? pctTxt(a, o) : null,
-        ESTADO[estadoMeta(a, o)], m.actual === 'pendiente' ? 'Aún no se registra en la plataforma' : (m.ayuda ?? '')];
+        m.soloValor ? null : ESTADO[estadoMeta(a, o)], m.actual === 'pendiente' ? 'Aún no se registra en la plataforma' : (m.ayuda ?? '')];
     }), []];
 }
 

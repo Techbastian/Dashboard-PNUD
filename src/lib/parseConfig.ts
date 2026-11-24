@@ -7,7 +7,8 @@ import { parse } from 'yaml';
 import { MODULOS, type Modulo } from './modulos';
 
 export interface Cifra { label: string; valor: string; ayuda?: string; color?: string; /** D-80: ruta de su lista por género (por defecto se deduce de `valor`; false = sin desglose). */ genero?: string | false; }
-export interface Meta { fase?: number; meta: string; actual: string; ayuda?: string; /** D-80: ruta de su lista por género (por defecto se deduce de `valor`; false = sin desglose). */ genero?: string | false; }
+export interface Meta { fase?: number; meta: string; actual: string; ayuda?: string; /** D-80: ruta de su lista por género (por defecto se deduce de `valor`; false = sin desglose). */ genero?: string | false;
+  /** D-85: conteo sin objetivo: solo la cantidad, sin barra, sin «/ objetivo», sin % ni estado. */ soloValor?: boolean; }
 /** Etapa de la ruta de la persona (D-37). `valor` = ruta del agregado público; `regla` = cómo se evalúa por persona
  *  en las vistas privadas (si falta, se deduce de `valor`; ver src/lib/etapas.ts). */
 export interface Etapa { etapa: string; valor: string; regla?: string; /** D-65: aclaración que va entre paréntesis en Participantes y Excel, p. ej. «línea base». */ detalle?: string; /** D-80: ruta de su lista por género (por defecto se deduce de `valor`; false = sin desglose). */ genero?: string | false; }

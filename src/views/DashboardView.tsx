@@ -68,7 +68,7 @@ function BarraEnVivo({ generatedAt, error, cargando, onActualizar }: { generated
 }
 
 /** Meta del convenio (FQSD `MetaCard`): actual / objetivo, barra, "Cumplida" o "Sin fuente aún". */
-function MetaCard({ label, actual, objetivo, ayuda }: { label: string; actual: Valor; objetivo: number | null; ayuda?: string }) {
+function MetaCard({ label, actual, objetivo, ayuda, soloValor }: { label: string; actual: Valor; objetivo: number | null; ayuda?: string; /** D-85 */ soloValor?: boolean }) {
   const pendiente = actual.estado !== 'ok';
   const v = n(actual) ?? 0;
   const cumplimiento = objetivo && objetivo > 0 ? v / objetivo : 0;
@@ -89,8 +89,9 @@ function MetaCard({ label, actual, objetivo, ayuda }: { label: string; actual: V
       </div>
       <div className="flex items-end gap-2">
         <span className={`text-3xl font-black tnum ${cumplida ? 'text-emerald-600' : pendiente ? 'text-slate-400' : 'text-slate-800'}`}>{pendiente ? '—' : num(v)}</span>
-        {objetivo != null && <span className="text-sm font-bold text-slate-400 mb-1">/ {num(objetivo)}</span>}
+        {!soloValor && objetivo != null && <span className="text-sm font-bold text-slate-400 mb-1">/ {num(objetivo)}</span>}
       </div>
+      {!soloValor && <>
       <div className="relative w-full bg-gray-200/70 h-2 rounded-full overflow-hidden" role="progressbar" aria-label={label} aria-valuenow={v} aria-valuemin={0} aria-valuemax={objetivo ?? 0}>
         <div className={`h-full rounded-full transition-all duration-500 ${barColor}`} style={{ width: `${Math.min(100, cumplimiento * 100)}%` }} />
       </div>
@@ -100,6 +101,7 @@ function MetaCard({ label, actual, objetivo, ayuda }: { label: string; actual: V
           <span className={cumplida ? 'text-emerald-600' : 'text-brand'}>{Math.round(cumplimiento * 100)}% de la meta</span>
         )}
       </div>
+      </>}
     </div>
   );
 }
@@ -265,7 +267,7 @@ export default function DashboardView() {
               )}
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                 {config.metas.filter(m => String(m.fase ?? 1) === f).map(m => (
-                  <Fragment key={m.meta}><MetaCard label={m.meta} actual={resolver(data, m.actual)} objetivo={objetivo(m.meta)} ayuda={m.ayuda} /></Fragment>
+                  <Fragment key={m.meta}><MetaCard label={m.meta} actual={resolver(data, m.actual)} objetivo={objetivo(m.meta)} ayuda={m.ayuda} soloValor={m.soloValor} /></Fragment>
                 ))}
               </div>
             </div>

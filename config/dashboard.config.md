@@ -71,6 +71,9 @@ metas:
   - { fase: 2, meta: Personas con línea base,                      actual: "formularios[linea-base].personas" }
   - { fase: 2, meta: Planes de acción individuales,                actual: grupos.plan_accion, ayuda: "Plan de acción individual cargado en la Fase Documental. Solo lo tiene quien completó registro, línea base y perfilamiento (P-53)" }
   - { fase: 2, meta: Espacios de aprendizaje con la población,     actual: "formacion.eventos_por_tipo[espacio_aprendizaje].realizados", ayuda: Eventos de tipo «Espacio de aprendizaje» ya realizados }
+  # P3 Intermediación laboral (P-80): total de postulaciones atribuibles (A-16), no personas. Requiere la función v17 (A-76);
+  # sin ella sale «Sin fuente». Sin objetivo en cohort_goals: muestra el número sin «/ meta».
+  - { fase: 3, meta: Postulaciones a vacantes (remisiones),        actual: empleabilidad.postulaciones_aliadas, ayuda: "Postulaciones a vacantes de empresas del proyecto o externas registradas por el equipo; una persona puede tener varias" }
   # P4 Mitigación de barreras
   # P-32: mitigada = soporte de entrega del servicio O asistió a una sesión formativa del Calendario (sin exigir matrícula)
   - { fase: 4, meta: Personas atendidas en mitigación de barreras, actual: uniones.mitigacion.personas, ayuda: Con soporte de entrega del servicio de mitigación o que asistió a una sesión formativa }
@@ -82,6 +85,7 @@ metas:
 fases:
   1: Producto 1 · Gestión empresarial
   2: Producto 2 · Mapeo y focalización
+  3: Producto 3 · Intermediación laboral
   4: Producto 4 · Mitigación de barreras
   5: Producto 5 · Vinculación laboral
 ```
@@ -513,7 +517,7 @@ pestanas:
 ```yaml
 informe:
   hojas:
-    - { nombre: 1 Hitos, contenido: metas, descripcion: "Las 12 metas del contrato: actual, objetivo, % de avance y estado" }
+    - { nombre: 1 Hitos, contenido: metas, descripcion: "Las 13 metas del contrato: actual, objetivo, % de avance y estado" }
     - nombre: 2 Registro
       descripcion: Género, edad, nivel educativo, municipio y las preguntas de selección del registro
       cifras: [{ label: Personas registradas, valor: "formularios[recorrer-pnud].personas" }, { label: Mujeres registradas, valor: "formularios[recorrer-pnud].mujeres" }]

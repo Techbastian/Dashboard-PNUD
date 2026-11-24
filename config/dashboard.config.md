@@ -74,7 +74,7 @@ metas:
   # P3 Intermediación laboral (P-80, P-81): personas intermediadas (objetivo 200 en cohort_goals, A-77) y remisiones en
   # total. Ambas con la regla atribuible de A-16. Remisiones = postulaciones, no personas (función v17, A-76); sin objetivo.
   - { fase: 3, meta: Personas intermediadas,                       actual: empleabilidad.personas_postuladas_aliadas, ayuda: "Personas con al menos una remisión a una vacante de empresa del proyecto o externa registrada por el equipo" }
-  - { fase: 3, meta: Remisiones a vacantes en total,               actual: empleabilidad.postulaciones_aliadas, ayuda: "Todas las remisiones hasta hoy; una persona puede tener varias" }
+  - { fase: 3, meta: Remisiones a vacantes en total,               actual: empleabilidad.postulaciones_aliadas, soloValor: true, ayuda: "Todas las remisiones hasta hoy; una persona puede tener varias" }   # P-82: solo la cantidad
   # P4 Mitigación de barreras
   # P-32: mitigada = soporte de entrega del servicio O asistió a una sesión formativa del Calendario (sin exigir matrícula)
   - { fase: 4, meta: Personas atendidas en mitigación de barreras, actual: uniones.mitigacion.personas, ayuda: Con soporte de entrega del servicio de mitigación o que asistió a una sesión formativa }
